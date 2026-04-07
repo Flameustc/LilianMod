@@ -111,6 +111,7 @@
       Identifier: PLUGIN_KEY,
       ButtonText: "LilianMod",
       load: () => {
+        state.settings = loadSettings();
       },
       run: () => {
         const previousAlign = MainCanvas.textAlign;
@@ -163,7 +164,6 @@
       settings: loadSettings()
     };
     registerPreferencesExtension(state);
-    saveSettings(state.settings);
   }
   function waitForBootstrap() {
     if (canBootstrap()) {
