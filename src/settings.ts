@@ -1,4 +1,5 @@
 export const PLUGIN_KEY = "LilianMod";
+export const SETTINGS_VERSION = "v0.1.0";
 const BACKUP_SUFFIX = "Backup";
 
 export interface LilianSettings {
