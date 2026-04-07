@@ -14,13 +14,16 @@ declare global {
     run: () => void;
     click: () => void;
     exit?: () => void;
+    unload?: () => void;
   }
 
   const Player: PlayerCharacter;
   const MouseX: number;
   const MouseY: number;
+  const MainCanvas: CanvasRenderingContext2D;
 
   function PreferenceRegisterExtensionSetting(setting: BCPreferenceExtensionSetting): void;
+  function PreferenceSubscreenExtensionsClear(): Promise<void>;
   function ServerPlayerExtensionSettingsSync(dataKeyName: string): void;
 
   function DrawText(text: string, x: number, y: number, color: string, backgroundColor?: string): void;
