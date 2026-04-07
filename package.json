@@ -1,0 +1,14 @@
+{
+  "name": "lilianmod",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal BondageClub extension settings plugin in TypeScript",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --format=iife --target=es2018 --outfile=dist/lilianmod.user.js --banner:js=\"// ==UserScript==\\n// @name LilianMod\\n// @namespace lilianmod\\n// @version 0.1.0\\n// @description LilianMod for BondageClub\\n// @match https://www.bondageprojects.elementfx.com/R*\\n// @grant none\\n// ==/UserScript==\"",
+    "watch": "esbuild src/index.ts --bundle --format=iife --target=es2018 --outfile=dist/lilianmod.user.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.11",
+    "typescript": "^5.9.3"
+  }
+}
