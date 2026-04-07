@@ -1,5 +1,5 @@
 import { registerPreferencesExtension } from "./preferencesExtension";
-import { saveSettings, loadSettings } from "./storage";
+import { loadSettings } from "./storage";
 
 function canBootstrap(): boolean {
   return (
@@ -15,8 +15,6 @@ function bootstrap(): void {
   };
 
   registerPreferencesExtension(state);
-  // Ensure first run creates ExtensionSettings slot and backup data.
-  saveSettings(state.settings);
 }
 
 function waitForBootstrap(): void {

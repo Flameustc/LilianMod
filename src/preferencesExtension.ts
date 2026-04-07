@@ -1,5 +1,5 @@
 import { LilianSettings, PLUGIN_KEY } from "./settings";
-import { saveSettings } from "./storage";
+import { loadSettings, saveSettings } from "./storage";
 
 const BUTTON = {
   x: 1200,
@@ -19,7 +19,8 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
     Identifier: PLUGIN_KEY,
     ButtonText: "LilianMod",
     load: () => {
-      // no-op for now, state already loaded by plugin bootstrap
+      // Always reload when opening the page to avoid stale in-memory values.
+      state.settings = loadSettings();
     },
     run: () => {
       const previousAlign = MainCanvas.textAlign;
