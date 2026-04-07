@@ -1,5 +1,14 @@
+import bcModSdk from "bondage-club-mod-sdk";
 import { registerPreferencesExtension } from "./preferencesExtension";
 import { loadSettings } from "./storage";
+import { installChatGarbleHook } from "./chat-control/hook";
+import { PLUGIN_KEY, SETTINGS_VERSION } from "./settings";
+
+declare global {
+  interface Window {
+    LilianMod_Loaded?: boolean;
+  }
+}
 
 function canBootstrap(): boolean {
   return (
@@ -10,11 +19,21 @@ function canBootstrap(): boolean {
 }
 
 function bootstrap(): void {
+  if (window.LilianMod_Loaded) return;
+  window.LilianMod_Loaded = false;
+
   const state = {
     settings: loadSettings(),
   };
 
+  const mod = bcModSdk.registerMod({
+    name: PLUGIN_KEY,
+    fullName: "LilianMod",
+    version: SETTINGS_VERSION.replace(/^v/i, ""),
+  });
+  installChatGarbleHook(mod, () => state.settings);
   registerPreferencesExtension(state);
+  window.LilianMod_Loaded = true;
 }
 
 function waitForBootstrap(): void {

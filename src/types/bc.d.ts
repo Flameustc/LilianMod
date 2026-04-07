@@ -4,6 +4,12 @@ declare global {
   interface PlayerCharacter {
     MemberNumber: number;
     ExtensionSettings?: Record<string, string>;
+    ChatSettings: {
+      OOCAutoClose: boolean;
+    };
+    RestrictionSettings: {
+      NoSpeechGarble: boolean;
+    };
   }
 
   interface BCPreferenceExtensionSetting {
@@ -21,10 +27,22 @@ declare global {
   const MouseX: number;
   const MouseY: number;
   const MainCanvas: CanvasRenderingContext2D;
+  class DictionaryBuilder {
+    sourceCharacter(character: PlayerCharacter): DictionaryBuilder;
+    build(): any[];
+  }
 
   function PreferenceRegisterExtensionSetting(setting: BCPreferenceExtensionSetting): void;
   function PreferenceSubscreenExtensionsClear(): Promise<void>;
   function ServerPlayerExtensionSettingsSync(dataKeyName: string): void;
+  var ChatRoomGenerateChatRoomChatMessage: (
+    type: "Chat" | "Whisper" | "Emote",
+    msg: string,
+    replyId?: string
+  ) => { Content: string; Type: string; Dictionary: any[] };
+  function SpeechGetOOCRanges(msg: string): Array<{ start: number; length: number }>;
+  function SpeechTransformGagGarbleIntensity(character: PlayerCharacter): number;
+  function ChatRoomMessageReplyStop(): void;
 
   function DrawText(text: string, x: number, y: number, color: string, backgroundColor?: string): void;
   function DrawButton(
@@ -37,5 +55,7 @@ declare global {
     image?: string,
     hoverText?: string
   ): void;
+  function DrawImageResize(path: string, x: number, y: number, width: number, height: number): void;
+  function DrawTextFit(text: string, x: number, y: number, width: number, color: string, backgroundColor?: string): void;
   function MouseIn(x: number, y: number, width: number, height: number): boolean;
-}
+} 

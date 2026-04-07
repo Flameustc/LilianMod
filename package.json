@@ -10,5 +10,8 @@
   "devDependencies": {
     "esbuild": "^0.25.11",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "bondage-club-mod-sdk": "^1.2.0"
   }
 }
