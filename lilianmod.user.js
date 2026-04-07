@@ -58,6 +58,12 @@
     w: 560,
     h: 90
   };
+  var LSCG_EXIT_BUTTON = {
+    x: 1815,
+    y: 75,
+    w: 90,
+    h: 90
+  };
   function registerPreferencesExtension(state) {
     PreferenceRegisterExtensionSetting({
       Identifier: PLUGIN_KEY,
@@ -65,7 +71,9 @@
       load: () => {
       },
       run: () => {
-        DrawText("LilianMod Settings", 1e3, 120, "White", "Gray");
+        const previousAlign = MainCanvas.textAlign;
+        MainCanvas.textAlign = "left";
+        DrawText("- LilianMod Settings -", 180, 130, "Black", "#D7F6E9");
         DrawText("Dummy setting", 820, 305, "White", "Gray");
         DrawButton(
           BUTTON.x,
@@ -75,11 +83,28 @@
           state.settings.dummyEnabled ? "Enabled" : "Disabled",
           state.settings.dummyEnabled ? "Green" : "#888888"
         );
+        DrawButton(
+          LSCG_EXIT_BUTTON.x,
+          LSCG_EXIT_BUTTON.y,
+          LSCG_EXIT_BUTTON.w,
+          LSCG_EXIT_BUTTON.h,
+          "",
+          "White",
+          "Icons/Exit.png",
+          "Main Menu"
+        );
+        MainCanvas.textAlign = previousAlign;
       },
       click: () => {
-        if (!MouseIn(BUTTON.x, BUTTON.y, BUTTON.w, BUTTON.h)) return;
-        state.settings.dummyEnabled = !state.settings.dummyEnabled;
-        saveSettings(state.settings);
+        if (MouseIn(BUTTON.x, BUTTON.y, BUTTON.w, BUTTON.h)) {
+          state.settings.dummyEnabled = !state.settings.dummyEnabled;
+          saveSettings(state.settings);
+          return;
+        }
+        if (MouseIn(LSCG_EXIT_BUTTON.x, LSCG_EXIT_BUTTON.y, LSCG_EXIT_BUTTON.w, LSCG_EXIT_BUTTON.h)) {
+          saveSettings(state.settings);
+          void PreferenceSubscreenExtensionsClear();
+        }
       },
       exit: () => {
         saveSettings(state.settings);
