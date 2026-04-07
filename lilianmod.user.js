@@ -3,6 +3,7 @@
 (() => {
   // src/settings.ts
   var PLUGIN_KEY = "LilianMod";
+  var SETTINGS_VERSION = "v0.1.0";
   var BACKUP_SUFFIX = "Backup";
   function getDefaultSettings() {
     return {
@@ -22,10 +23,40 @@
   }
 
   // src/storage.ts
+  function compareVersion(a, b) {
+    var _a, _b;
+    const normA = a.replace(/^v/i, "");
+    const normB = b.replace(/^v/i, "");
+    const pa = normA.split(".").map((x) => Number.parseInt(x, 10) || 0);
+    const pb = normB.split(".").map((x) => Number.parseInt(x, 10) || 0);
+    const maxLen = Math.max(pa.length, pb.length);
+    for (let i = 0; i < maxLen; i++) {
+      const av = (_a = pa[i]) != null ? _a : 0;
+      const bv = (_b = pb[i]) != null ? _b : 0;
+      if (av > bv) return 1;
+      if (av < bv) return -1;
+    }
+    return 0;
+  }
   function parseSettings(raw) {
     if (!raw) return null;
     try {
-      return sanitizeSettings(JSON.parse(raw));
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      if (!("settings" in parsed)) {
+        return {
+          settings: sanitizeSettings(parsed),
+          version: "v0.0.0",
+          updatedAt: 0
+        };
+      }
+      const wrapped = parsed;
+      const storedVersion = typeof wrapped.version === "string" ? wrapped.version : typeof wrapped.Version === "string" ? wrapped.Version : "v0.0.0";
+      return {
+        settings: sanitizeSettings(wrapped.settings),
+        version: storedVersion,
+        updatedAt: typeof wrapped.updatedAt === "number" ? wrapped.updatedAt : 0
+      };
     } catch (e) {
       return null;
     }
@@ -35,17 +66,28 @@
     return Player.ExtensionSettings;
   }
   function loadSettings() {
-    var _a, _b, _c;
+    var _a;
     const defaults = getDefaultSettings();
     const container = ensureExtensionSettingsContainer();
     const remoteRaw = (_a = container[PLUGIN_KEY]) != null ? _a : null;
     const backupRaw = localStorage.getItem(getBackupStorageKey(Player.MemberNumber));
-    const parsed = (_c = (_b = parseSettings(remoteRaw)) != null ? _b : parseSettings(backupRaw)) != null ? _c : defaults;
-    return sanitizeSettings(parsed);
+    const remote = parseSettings(remoteRaw);
+    const backup = parseSettings(backupRaw);
+    if (!remote && !backup) return defaults;
+    if (!remote) return backup.settings;
+    if (!backup) return remote.settings;
+    const versionCmp = compareVersion(remote.version, backup.version);
+    if (versionCmp > 0) return remote.settings;
+    if (versionCmp < 0) return backup.settings;
+    return remote.updatedAt >= backup.updatedAt ? remote.settings : backup.settings;
   }
   function saveSettings(settings) {
     const container = ensureExtensionSettingsContainer();
-    const value = JSON.stringify(sanitizeSettings(settings));
+    const value = JSON.stringify({
+      settings: sanitizeSettings(settings),
+      version: SETTINGS_VERSION,
+      updatedAt: Date.now()
+    });
     container[PLUGIN_KEY] = value;
     localStorage.setItem(getBackupStorageKey(Player.MemberNumber), value);
     ServerPlayerExtensionSettingsSync(PLUGIN_KEY);
