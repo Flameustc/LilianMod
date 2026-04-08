@@ -304,6 +304,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
   }
 
   // src/ui/preferenceExtensionLayout.ts
+  var SUB_X0 = 180;
   var PREFERENCE_EXT_MAIN_MENU = {
     ORIGIN_X: 150,
     ORIGIN_Y: 190,
@@ -318,12 +319,15 @@ One of mods you are using is using an old version of SDK. It will work for now b
     TEXT_MAX_W: 340
   };
   var PREFERENCE_EXT_SUBSCREEN = {
-    START_X: 180,
+    START_X: SUB_X0,
     START_Y: 205,
     Y_MOD: 75,
     TITLE_Y: 130,
     LABEL_WIDTH: 600,
-    CONTROL_X: 930,
+    /** 勾选框左缘，同 LSCG `getXPos(i) + 600` */
+    CHECKBOX_LEFT: SUB_X0 + 600,
+    /** `ElementPosition` 横坐标（控件水平中心），同 LSCG `getXPos(i) + 750` */
+    CONTROL_CENTER_X: SUB_X0 + 750,
     CONTROL_W: 300,
     CONTROL_BTN_H: 50,
     CHECKBOX_SIZE: 64
@@ -341,8 +345,22 @@ One of mods you are using is using an old version of SDK. It will work for now b
   }
 
   // src/preferencesExtension.ts
-  var GARBLE_SOUND_PRESETS = ["\u545C", "\u55EF", "\u5514", "m"];
   var MAIN_ICON = "Icons/Preference.png";
+  var PREF_INPUT_GARBLE = `${PLUGIN_KEY}-pref-garble-sound`;
+  var PREF_INPUT_HORNY = `${PLUGIN_KEY}-pref-horny-level`;
+  var GARBLE_SOUND_MAX_LEN = 24;
+  var TT_CUSTOM_GARBLE = "\u5F00\u542F\u540E\uFF0C\u4F7F\u7528\u4E0B\u65B9\u81EA\u5B9A\u4E49\u62DF\u58F0\u5B57\u53C2\u4E0E\u5835\u5634\u542B\u7CCA\uFF1B\u5173\u95ED\u5219\u8D70\u6E38\u620F\u539F\u7248\u903B\u8F91\u3002";
+  var TT_GARBLE_SOUND = "\u542B\u7CCA\u65F6\u63D2\u5165\u7684\u62DF\u58F0\u5B57\uFF0C\u5728\u6846\u5185\u76F4\u63A5\u8F93\u5165\uFF08\u5EFA\u8BAE\u77ED\u5B57\u6216\u8BCD\uFF09\u3002\u82E5\u6E05\u7A7A\u540E\u5931\u7126/\u66F4\u6539\uFF0C\u5C06\u6062\u590D\u4E3A\u9ED8\u8BA4\u300C\u545C\u300D\u3002\u6700\u591A 24 \u5B57\u7B26\u3002";
+  var TT_HORNY_LEVEL = "\u5174\u594B\u7B49\u7EA7 0\u201310\u3002\u6570\u503C \xD710 \u4F1A\u5E76\u5165\u5404\u7C7B\u884C\u4E3A\u5BFC\u81F4\u7684 arousal \u5C01\u9876\uFF08\u6700\u5927 100\uFF09\uFF1B\u5C01\u9876\u81F3 100 \u65F6\u53EF\u89E6\u53D1\u9AD8\u6F6E\u3002";
+  function prefHelpButtonLeft(xL) {
+    return xL + 558;
+  }
+  function prefHelpButtonTop(row) {
+    return preferenceExtSubscreenRowY(row) - 36;
+  }
+  function drawPrefHelpHover(xL, row, tooltip) {
+    DrawButton(prefHelpButtonLeft(xL), prefHelpButtonTop(row), 40, 40, "?", "White", "", tooltip);
+  }
   function drawExtensionExitAndHelp() {
     DrawButton(
       PREFERENCE_EXT_EXIT.x,
@@ -390,8 +408,100 @@ One of mods you are using is using an old version of SDK. It will work for now b
     const { x, y } = preferenceExtMainMenuSlot(px, py);
     return MouseIn(x, y, PREFERENCE_EXT_MAIN_MENU.BTN_W, PREFERENCE_EXT_MAIN_MENU.BTN_H);
   }
+  function removePreferenceExtensionInputs() {
+    ElementRemove(PREF_INPUT_GARBLE);
+    ElementRemove(PREF_INPUT_HORNY);
+  }
   function registerPreferencesExtension(state) {
     let view = "MainMenu";
+    let inputsMountedView = null;
+    function ensurePreferenceExtensionInputs(sub) {
+      if (inputsMountedView === sub) return;
+      removePreferenceExtensionInputs();
+      inputsMountedView = sub;
+      if (sub === "ChatControl") {
+        const inp = ElementCreateInput(
+          PREF_INPUT_GARBLE,
+          "text",
+          state.settings.ChatControlSetting.garbleSound,
+          String(GARBLE_SOUND_MAX_LEN)
+        );
+        inp.setAttribute("autocomplete", "off");
+        const commit = () => {
+          let v = inp.value.trim();
+          if (!v) v = getDefaultSettings().ChatControlSetting.garbleSound;
+          const chars = [...v];
+          if (chars.length > GARBLE_SOUND_MAX_LEN) {
+            v = chars.slice(0, GARBLE_SOUND_MAX_LEN).join("");
+          } else {
+            v = chars.join("");
+          }
+          state.settings.ChatControlSetting.garbleSound = v;
+          inp.value = v;
+          saveSettings(state.settings);
+        };
+        inp.addEventListener("change", commit);
+        inp.addEventListener("blur", commit);
+      } else {
+        const inp = ElementCreateInput(
+          PREF_INPUT_HORNY,
+          "number",
+          String(state.settings.OrgasmControlSetting.hornyLevel),
+          "2"
+        );
+        inp.setAttribute("min", "0");
+        inp.setAttribute("max", "10");
+        inp.setAttribute("autocomplete", "off");
+        const commit = () => {
+          let n = parseInt(inp.value, 10);
+          if (!Number.isFinite(n)) {
+            n = state.settings.OrgasmControlSetting.hornyLevel;
+          } else {
+            n = Math.min(10, Math.max(0, Math.floor(n)));
+          }
+          state.settings.OrgasmControlSetting.hornyLevel = n;
+          inp.value = String(n);
+          saveSettings(state.settings);
+        };
+        inp.addEventListener("change", commit);
+        inp.addEventListener("blur", commit);
+      }
+    }
+    function positionPreferenceExtensionInput(sub, row) {
+      const y = preferenceExtSubscreenRowY(row);
+      const cx = PREFERENCE_EXT_SUBSCREEN.CONTROL_CENTER_X;
+      const cy = y - 20 + PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H / 2;
+      if (sub === "ChatControl") {
+        ElementPosition(
+          PREF_INPUT_GARBLE,
+          cx,
+          cy,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+        );
+      } else {
+        ElementPosition(
+          PREF_INPUT_HORNY,
+          cx,
+          cy,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+        );
+      }
+    }
+    function syncPreferenceInputsFromState(sub) {
+      if (sub === "ChatControl") {
+        const el = document.getElementById(PREF_INPUT_GARBLE);
+        if (!el || document.activeElement === el) return;
+        const want = state.settings.ChatControlSetting.garbleSound;
+        if (el.value !== want) el.value = want;
+      } else {
+        const el = document.getElementById(PREF_INPUT_HORNY);
+        if (!el || document.activeElement === el) return;
+        const want = String(state.settings.OrgasmControlSetting.hornyLevel);
+        if (el.value !== want) el.value = want;
+      }
+    }
     PreferenceRegisterExtensionSetting({
       Identifier: PLUGIN_KEY,
       ButtonText: "LilianMod",
@@ -399,10 +509,18 @@ One of mods you are using is using an old version of SDK. It will work for now b
       load: () => {
         state.settings = loadSettings();
         view = "MainMenu";
+        removePreferenceExtensionInputs();
+        inputsMountedView = null;
+      },
+      unload: () => {
+        removePreferenceExtensionInputs();
+        inputsMountedView = null;
       },
       run: () => {
         const previousAlign = MainCanvas.textAlign;
         if (view === "MainMenu") {
+          removePreferenceExtensionInputs();
+          inputsMountedView = null;
           MainCanvas.textAlign = "left";
           DrawText(
             `- LilianMod Settings -`,
@@ -419,6 +537,9 @@ One of mods you are using is using an old version of SDK. It will work for now b
         }
         MainCanvas.textAlign = "left";
         if (view === "ChatControl") {
+          ensurePreferenceExtensionInputs("ChatControl");
+          positionPreferenceExtensionInput("ChatControl", 1);
+          syncPreferenceInputsFromState("ChatControl");
           DrawText(
             `- LilianMod ChatControl -`,
             PREFERENCE_EXT_SUBSCREEN.START_X,
@@ -430,7 +551,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
           const y0 = preferenceExtSubscreenRowY(0);
           const hover0 = MouseIn(xL, y0 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
           DrawCheckbox(
-            xL + 600,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_LEFT,
             y0 - 32,
             PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
             PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
@@ -446,6 +567,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
             hover0 ? "Red" : "Black",
             "Gray"
           );
+          drawPrefHelpHover(xL, 0, TT_CUSTOM_GARBLE);
           const y1 = preferenceExtSubscreenRowY(1);
           const hover1 = MouseIn(xL, y1 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
           DrawTextFit(
@@ -456,15 +578,11 @@ One of mods you are using is using an old version of SDK. It will work for now b
             hover1 ? "Red" : "Black",
             "Gray"
           );
-          DrawButton(
-            PREFERENCE_EXT_SUBSCREEN.CONTROL_X,
-            y1 - 20,
-            PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
-            PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H,
-            state.settings.ChatControlSetting.garbleSound,
-            "White"
-          );
+          drawPrefHelpHover(xL, 1, TT_GARBLE_SOUND);
         } else {
+          ensurePreferenceExtensionInputs("OrgasmControl");
+          positionPreferenceExtensionInput("OrgasmControl", 0);
+          syncPreferenceInputsFromState("OrgasmControl");
           DrawText(
             `- LilianMod \u9AD8\u6F6E\u63A7\u5236 -`,
             PREFERENCE_EXT_SUBSCREEN.START_X,
@@ -483,24 +601,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
             hover0 ? "Red" : "Black",
             "Gray"
           );
-          DrawButton(
-            PREFERENCE_EXT_SUBSCREEN.CONTROL_X,
-            y0 - 20,
-            PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
-            PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H,
-            String(state.settings.OrgasmControlSetting.hornyLevel),
-            "White"
-          );
-          const y1 = preferenceExtSubscreenRowY(1);
-          const hover1 = MouseIn(xL, y1 - 32, 950, 64);
-          DrawTextFit(
-            "\u53D6\u503C\xD710 \u5E76\u5165\u6240\u6709\u884C\u4E3A\u7684 arousal \u5C01\u9876\uFF08\u6700\u5927 100\uFF09\uFF1B\u5C01\u9876\u81F3 100 \u65F6\u53EF\u89E6\u53D1\u9AD8\u6F6E\u3002",
-            xL,
-            y1,
-            950,
-            hover1 ? "Red" : "Black",
-            "Gray"
-          );
+          drawPrefHelpHover(xL, 0, TT_HORNY_LEVEL);
         }
         MainCanvas.textAlign = previousAlign;
         drawExtensionExitAndHelp();
@@ -509,6 +610,8 @@ One of mods you are using is using an old version of SDK. It will work for now b
         if (MouseIn(PREFERENCE_EXT_EXIT.x, PREFERENCE_EXT_EXIT.y, PREFERENCE_EXT_EXIT.w, PREFERENCE_EXT_EXIT.h)) {
           if (view === "ChatControl" || view === "OrgasmControl") {
             saveSettings(state.settings);
+            removePreferenceExtensionInputs();
+            inputsMountedView = null;
             view = "MainMenu";
           } else {
             saveSettings(state.settings);
@@ -531,45 +634,20 @@ One of mods you are using is using an old version of SDK. It will work for now b
           const xL = PREFERENCE_EXT_SUBSCREEN.START_X;
           const y0 = preferenceExtSubscreenRowY(0);
           if (MouseIn(
-            xL + 600,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_LEFT,
             y0 - 32,
             PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
             PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE
           )) {
             state.settings.ChatControlSetting.customGarbleEnabled = !state.settings.ChatControlSetting.customGarbleEnabled;
             saveSettings(state.settings);
-            return;
-          }
-          const y1 = preferenceExtSubscreenRowY(1);
-          if (MouseIn(
-            PREFERENCE_EXT_SUBSCREEN.CONTROL_X,
-            y1 - 20,
-            PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
-            PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
-          )) {
-            const current = GARBLE_SOUND_PRESETS.indexOf(state.settings.ChatControlSetting.garbleSound);
-            const next = (current + 1 + GARBLE_SOUND_PRESETS.length) % GARBLE_SOUND_PRESETS.length;
-            state.settings.ChatControlSetting.garbleSound = GARBLE_SOUND_PRESETS[next];
-            saveSettings(state.settings);
-          }
-          return;
-        }
-        if (view === "OrgasmControl") {
-          const y0 = preferenceExtSubscreenRowY(0);
-          if (MouseIn(
-            PREFERENCE_EXT_SUBSCREEN.CONTROL_X,
-            y0 - 20,
-            PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
-            PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
-          )) {
-            const h = state.settings.OrgasmControlSetting.hornyLevel;
-            state.settings.OrgasmControlSetting.hornyLevel = (h + 1) % 11;
-            saveSettings(state.settings);
           }
         }
       },
       exit: () => {
         saveSettings(state.settings);
+        removePreferenceExtensionInputs();
+        inputsMountedView = null;
       }
     });
   }
