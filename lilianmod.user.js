@@ -321,6 +321,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
   var PREFERENCE_EXT_SUBSCREEN = {
     START_X: SUB_X0,
     START_Y: 205,
+    /** 行距；标签悬停框高度 64、顶边 y = 行基线 −32，故需 Y_MOD ≥ 64 才不重叠（现余 11px 间隙） */
     Y_MOD: 75,
     TITLE_Y: 130,
     LABEL_WIDTH: 600,
@@ -334,6 +335,12 @@ One of mods you are using is using an old version of SDK. It will work for now b
   };
   var PREFERENCE_EXT_EXIT = { x: 1815, y: 75, w: 90, h: 90 };
   var PREFERENCE_EXT_HELP = { x: 1815, y: 820, w: 90, h: 90 };
+  var PREFERENCE_EXT_TOOLTIP_BAR = {
+    X: 300,
+    Y: 850,
+    W: 1400,
+    H: 65
+  };
   function preferenceExtMainMenuSlot(px, py) {
     return {
       x: PREFERENCE_EXT_MAIN_MENU.ORIGIN_X + PREFERENCE_EXT_MAIN_MENU.STEP_X * px,
@@ -352,14 +359,15 @@ One of mods you are using is using an old version of SDK. It will work for now b
   var TT_CUSTOM_GARBLE = "\u5F00\u542F\u540E\uFF0C\u4F7F\u7528\u4E0B\u65B9\u81EA\u5B9A\u4E49\u62DF\u58F0\u5B57\u53C2\u4E0E\u5835\u5634\u542B\u7CCA\uFF1B\u5173\u95ED\u5219\u8D70\u6E38\u620F\u539F\u7248\u903B\u8F91\u3002";
   var TT_GARBLE_SOUND = "\u542B\u7CCA\u65F6\u63D2\u5165\u7684\u62DF\u58F0\u5B57\uFF0C\u5728\u6846\u5185\u76F4\u63A5\u8F93\u5165\uFF08\u5EFA\u8BAE\u77ED\u5B57\u6216\u8BCD\uFF09\u3002\u82E5\u6E05\u7A7A\u540E\u5931\u7126/\u66F4\u6539\uFF0C\u5C06\u6062\u590D\u4E3A\u9ED8\u8BA4\u300C\u545C\u300D\u3002\u6700\u591A 24 \u5B57\u7B26\u3002";
   var TT_HORNY_LEVEL = "\u5174\u594B\u7B49\u7EA7 0\u201310\u3002\u6570\u503C \xD710 \u4F1A\u5E76\u5165\u5404\u7C7B\u884C\u4E3A\u5BFC\u81F4\u7684 arousal \u5C01\u9876\uFF08\u6700\u5927 100\uFF09\uFF1B\u5C01\u9876\u81F3 100 \u65F6\u53EF\u89E6\u53D1\u9AD8\u6F6E\u3002";
-  function prefHelpButtonLeft(xL) {
-    return xL + 558;
-  }
-  function prefHelpButtonTop(row) {
-    return preferenceExtSubscreenRowY(row) - 36;
-  }
-  function drawPrefHelpHover(xL, row, tooltip) {
-    DrawButton(prefHelpButtonLeft(xL), prefHelpButtonTop(row), 40, 40, "?", "White", "", tooltip);
+  function drawPreferenceTooltipBar(text) {
+    const { X: x, Y: y, W: w, H: h } = PREFERENCE_EXT_TOOLTIP_BAR;
+    const canvas = MainCanvas;
+    const bak = canvas.textAlign;
+    canvas.textAlign = "left";
+    DrawRect(x, y, w, h, "#FFFF88");
+    DrawEmptyRect(x, y, w, h, "black", 2);
+    DrawTextFit(text, x + 3, y + 33, w - 6, "black");
+    canvas.textAlign = bak;
   }
   function drawExtensionExitAndHelp() {
     DrawButton(
@@ -567,7 +575,6 @@ One of mods you are using is using an old version of SDK. It will work for now b
             hover0 ? "Red" : "Black",
             "Gray"
           );
-          drawPrefHelpHover(xL, 0, TT_CUSTOM_GARBLE);
           const y1 = preferenceExtSubscreenRowY(1);
           const hover1 = MouseIn(xL, y1 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
           DrawTextFit(
@@ -578,7 +585,12 @@ One of mods you are using is using an old version of SDK. It will work for now b
             hover1 ? "Red" : "Black",
             "Gray"
           );
-          drawPrefHelpHover(xL, 1, TT_GARBLE_SOUND);
+          if (hover0) {
+            drawPreferenceTooltipBar(TT_CUSTOM_GARBLE);
+          }
+          if (hover1) {
+            drawPreferenceTooltipBar(TT_GARBLE_SOUND);
+          }
         } else {
           ensurePreferenceExtensionInputs("OrgasmControl");
           positionPreferenceExtensionInput("OrgasmControl", 0);
@@ -601,7 +613,9 @@ One of mods you are using is using an old version of SDK. It will work for now b
             hover0 ? "Red" : "Black",
             "Gray"
           );
-          drawPrefHelpHover(xL, 0, TT_HORNY_LEVEL);
+          if (hover0) {
+            drawPreferenceTooltipBar(TT_HORNY_LEVEL);
+          }
         }
         MainCanvas.textAlign = previousAlign;
         drawExtensionExitAndHelp();
