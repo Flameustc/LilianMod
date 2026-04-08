@@ -202,6 +202,9 @@ One of mods you are using is using an old version of SDK. It will work for now b
       ChatControlSetting: {
         customGarbleEnabled: true,
         garbleSound: "\u545C"
+      },
+      OrgasmControlSetting: {
+        hornyLevel: 0
       }
     };
   }
@@ -209,14 +212,22 @@ One of mods you are using is using an old version of SDK. It will work for now b
     return `${PLUGIN_KEY}_${memberNumber}_${BACKUP_SUFFIX}`;
   }
   function sanitizeSettings(input) {
+    var _a;
     const fallback = getDefaultSettings();
     if (!input || typeof input !== "object") return fallback;
     const raw = input;
     const chatControl = raw.ChatControlSetting;
+    const orgasm = (_a = raw.OrgasmControlSetting) != null ? _a : raw.OrgasmManagementSetting;
+    let horny = typeof (orgasm == null ? void 0 : orgasm.hornyLevel) === "number" && Number.isFinite(orgasm.hornyLevel) ? Math.floor(orgasm.hornyLevel) : fallback.OrgasmControlSetting.hornyLevel;
+    if (horny < 0) horny = 0;
+    if (horny > 10) horny = 10;
     return {
       ChatControlSetting: {
         customGarbleEnabled: typeof (chatControl == null ? void 0 : chatControl.customGarbleEnabled) === "boolean" ? chatControl.customGarbleEnabled : fallback.ChatControlSetting.customGarbleEnabled,
         garbleSound: typeof (chatControl == null ? void 0 : chatControl.garbleSound) === "string" && chatControl.garbleSound.trim().length > 0 ? chatControl.garbleSound : fallback.ChatControlSetting.garbleSound
+      },
+      OrgasmControlSetting: {
+        hornyLevel: horny
       }
     };
   }
@@ -292,108 +303,268 @@ One of mods you are using is using an old version of SDK. It will work for now b
     ServerPlayerExtensionSettingsSync(PLUGIN_KEY);
   }
 
+  // src/ui/preferenceExtensionLayout.ts
+  var PREFERENCE_EXT_MAIN_MENU = {
+    ORIGIN_X: 150,
+    ORIGIN_Y: 190,
+    STEP_X: 480,
+    STEP_Y: 120,
+    BTN_W: 450,
+    BTN_H: 90,
+    ICON_SIZE: 70,
+    ICON_PAD: 10,
+    TEXT_INNER_X: 100,
+    TEXT_BASELINE_OFFSET: 45,
+    TEXT_MAX_W: 340
+  };
+  var PREFERENCE_EXT_SUBSCREEN = {
+    START_X: 180,
+    START_Y: 205,
+    Y_MOD: 75,
+    TITLE_Y: 130,
+    LABEL_WIDTH: 600,
+    CONTROL_X: 930,
+    CONTROL_W: 300,
+    CONTROL_BTN_H: 50,
+    CHECKBOX_SIZE: 64
+  };
+  var PREFERENCE_EXT_EXIT = { x: 1815, y: 75, w: 90, h: 90 };
+  var PREFERENCE_EXT_HELP = { x: 1815, y: 820, w: 90, h: 90 };
+  function preferenceExtMainMenuSlot(px, py) {
+    return {
+      x: PREFERENCE_EXT_MAIN_MENU.ORIGIN_X + PREFERENCE_EXT_MAIN_MENU.STEP_X * px,
+      y: PREFERENCE_EXT_MAIN_MENU.ORIGIN_Y + PREFERENCE_EXT_MAIN_MENU.STEP_Y * py
+    };
+  }
+  function preferenceExtSubscreenRowY(row) {
+    return PREFERENCE_EXT_SUBSCREEN.START_Y + PREFERENCE_EXT_SUBSCREEN.Y_MOD * row;
+  }
+
   // src/preferencesExtension.ts
-  var MENU_BUTTON = {
-    x: 150,
-    y: 190,
-    w: 450,
-    h: 90
-  };
-  var CUSTOM_GARBLE_BUTTON = {
-    x: 1200,
-    y: 260,
-    w: 560,
-    h: 90
-  };
-  var GARBLE_SOUND_BUTTON = {
-    x: 1200,
-    y: 380,
-    w: 560,
-    h: 90
-  };
-  var LSCG_EXIT_BUTTON = {
-    x: 1815,
-    y: 75,
-    w: 90,
-    h: 90
-  };
   var GARBLE_SOUND_PRESETS = ["\u545C", "\u55EF", "\u5514", "m"];
+  var MAIN_ICON = "Icons/Preference.png";
+  function drawExtensionExitAndHelp() {
+    DrawButton(
+      PREFERENCE_EXT_EXIT.x,
+      PREFERENCE_EXT_EXIT.y,
+      PREFERENCE_EXT_EXIT.w,
+      PREFERENCE_EXT_EXIT.h,
+      "",
+      "White",
+      "Icons/Exit.png",
+      "Main Menu"
+    );
+    DrawButton(
+      PREFERENCE_EXT_HELP.x,
+      PREFERENCE_EXT_HELP.y,
+      PREFERENCE_EXT_HELP.w,
+      PREFERENCE_EXT_HELP.h,
+      "",
+      "White",
+      "Icons/Introduction.png",
+      "LilianMod"
+    );
+  }
+  function drawMainMenuEntry(px, py, icon, label) {
+    const { x, y } = preferenceExtMainMenuSlot(px, py);
+    MainCanvas.textAlign = "center";
+    DrawButton(x, y, PREFERENCE_EXT_MAIN_MENU.BTN_W, PREFERENCE_EXT_MAIN_MENU.BTN_H, "", "White");
+    DrawImageResize(
+      icon,
+      x + PREFERENCE_EXT_MAIN_MENU.ICON_PAD,
+      y + PREFERENCE_EXT_MAIN_MENU.ICON_PAD,
+      PREFERENCE_EXT_MAIN_MENU.ICON_SIZE,
+      PREFERENCE_EXT_MAIN_MENU.ICON_SIZE
+    );
+    MainCanvas.textAlign = "left";
+    DrawTextFit(
+      label,
+      x + PREFERENCE_EXT_MAIN_MENU.TEXT_INNER_X,
+      y + PREFERENCE_EXT_MAIN_MENU.TEXT_BASELINE_OFFSET,
+      PREFERENCE_EXT_MAIN_MENU.TEXT_MAX_W,
+      "Black"
+    );
+    MainCanvas.textAlign = "center";
+  }
+  function clickMainMenuEntry(px, py) {
+    const { x, y } = preferenceExtMainMenuSlot(px, py);
+    return MouseIn(x, y, PREFERENCE_EXT_MAIN_MENU.BTN_W, PREFERENCE_EXT_MAIN_MENU.BTN_H);
+  }
   function registerPreferencesExtension(state) {
     let view = "MainMenu";
     PreferenceRegisterExtensionSetting({
       Identifier: PLUGIN_KEY,
       ButtonText: "LilianMod",
+      Image: MAIN_ICON,
       load: () => {
         state.settings = loadSettings();
         view = "MainMenu";
       },
       run: () => {
         const previousAlign = MainCanvas.textAlign;
-        MainCanvas.textAlign = "left";
         if (view === "MainMenu") {
-          DrawText("- LilianMod Settings -", 180, 130, "Black", "#D7F6E9");
-          DrawButton(MENU_BUTTON.x, MENU_BUTTON.y, MENU_BUTTON.w, MENU_BUTTON.h, "", "White");
-          DrawImageResize("Icons/Preference.png", MENU_BUTTON.x + 10, MENU_BUTTON.y + 10, 70, 70);
-          DrawTextFit("ChatControl", MENU_BUTTON.x + 100, MENU_BUTTON.y + 45, 340, "Black");
-        } else {
-          DrawText("- LilianMod ChatControl -", 180, 130, "Black", "#D7F6E9");
-          DrawText("Custom gag garble", 820, 305, "White", "Gray");
-          DrawButton(
-            CUSTOM_GARBLE_BUTTON.x,
-            CUSTOM_GARBLE_BUTTON.y,
-            CUSTOM_GARBLE_BUTTON.w,
-            CUSTOM_GARBLE_BUTTON.h,
-            state.settings.ChatControlSetting.customGarbleEnabled ? "Enabled" : "Disabled",
-            state.settings.ChatControlSetting.customGarbleEnabled ? "Green" : "#888888"
+          MainCanvas.textAlign = "left";
+          DrawText(
+            `- LilianMod Settings -`,
+            PREFERENCE_EXT_SUBSCREEN.START_X,
+            PREFERENCE_EXT_SUBSCREEN.TITLE_Y,
+            "Black",
+            "#D7F6E9"
           );
-          DrawText("Garble sound", 820, 425, "White", "Gray");
+          drawMainMenuEntry(0, 0, MAIN_ICON, "ChatControl");
+          drawMainMenuEntry(0, 1, MAIN_ICON, "\u9AD8\u6F6E\u63A7\u5236");
+          MainCanvas.textAlign = previousAlign;
+          drawExtensionExitAndHelp();
+          return;
+        }
+        MainCanvas.textAlign = "left";
+        if (view === "ChatControl") {
+          DrawText(
+            `- LilianMod ChatControl -`,
+            PREFERENCE_EXT_SUBSCREEN.START_X,
+            PREFERENCE_EXT_SUBSCREEN.TITLE_Y,
+            "Black",
+            "#D7F6E9"
+          );
+          const xL = PREFERENCE_EXT_SUBSCREEN.START_X;
+          const y0 = preferenceExtSubscreenRowY(0);
+          const hover0 = MouseIn(xL, y0 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+          DrawCheckbox(
+            xL + 600,
+            y0 - 32,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
+            "",
+            state.settings.ChatControlSetting.customGarbleEnabled,
+            false
+          );
+          DrawTextFit(
+            "Custom gag garble",
+            xL,
+            y0,
+            PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+            hover0 ? "Red" : "Black",
+            "Gray"
+          );
+          const y1 = preferenceExtSubscreenRowY(1);
+          const hover1 = MouseIn(xL, y1 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+          DrawTextFit(
+            "Garble sound",
+            xL,
+            y1,
+            PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+            hover1 ? "Red" : "Black",
+            "Gray"
+          );
           DrawButton(
-            GARBLE_SOUND_BUTTON.x,
-            GARBLE_SOUND_BUTTON.y,
-            GARBLE_SOUND_BUTTON.w,
-            GARBLE_SOUND_BUTTON.h,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_X,
+            y1 - 20,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H,
             state.settings.ChatControlSetting.garbleSound,
             "White"
           );
+        } else {
+          DrawText(
+            `- LilianMod \u9AD8\u6F6E\u63A7\u5236 -`,
+            PREFERENCE_EXT_SUBSCREEN.START_X,
+            PREFERENCE_EXT_SUBSCREEN.TITLE_Y,
+            "Black",
+            "#D7F6E9"
+          );
+          const xL = PREFERENCE_EXT_SUBSCREEN.START_X;
+          const y0 = preferenceExtSubscreenRowY(0);
+          const hover0 = MouseIn(xL, y0 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+          DrawTextFit(
+            "\u5174\u594B\u7B49\u7EA7 (0\u201310)",
+            xL,
+            y0,
+            PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+            hover0 ? "Red" : "Black",
+            "Gray"
+          );
+          DrawButton(
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_X,
+            y0 - 20,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H,
+            String(state.settings.OrgasmControlSetting.hornyLevel),
+            "White"
+          );
+          const y1 = preferenceExtSubscreenRowY(1);
+          const hover1 = MouseIn(xL, y1 - 32, 950, 64);
+          DrawTextFit(
+            "\u53D6\u503C\xD710 \u5E76\u5165\u6240\u6709\u884C\u4E3A\u7684 arousal \u5C01\u9876\uFF08\u6700\u5927 100\uFF09\uFF1B\u5C01\u9876\u81F3 100 \u65F6\u53EF\u89E6\u53D1\u9AD8\u6F6E\u3002",
+            xL,
+            y1,
+            950,
+            hover1 ? "Red" : "Black",
+            "Gray"
+          );
         }
-        DrawButton(
-          LSCG_EXIT_BUTTON.x,
-          LSCG_EXIT_BUTTON.y,
-          LSCG_EXIT_BUTTON.w,
-          LSCG_EXIT_BUTTON.h,
-          "",
-          "White",
-          "Icons/Exit.png",
-          "Main Menu"
-        );
         MainCanvas.textAlign = previousAlign;
+        drawExtensionExitAndHelp();
       },
       click: () => {
-        if (view === "MainMenu" && MouseIn(MENU_BUTTON.x, MENU_BUTTON.y, MENU_BUTTON.w, MENU_BUTTON.h)) {
-          view = "ChatControl";
-          return;
-        }
-        if (view === "ChatControl") {
-          if (MouseIn(CUSTOM_GARBLE_BUTTON.x, CUSTOM_GARBLE_BUTTON.y, CUSTOM_GARBLE_BUTTON.w, CUSTOM_GARBLE_BUTTON.h)) {
-            state.settings.ChatControlSetting.customGarbleEnabled = !state.settings.ChatControlSetting.customGarbleEnabled;
-            saveSettings(state.settings);
-            return;
-          }
-          if (MouseIn(GARBLE_SOUND_BUTTON.x, GARBLE_SOUND_BUTTON.y, GARBLE_SOUND_BUTTON.w, GARBLE_SOUND_BUTTON.h)) {
-            const current = GARBLE_SOUND_PRESETS.indexOf(state.settings.ChatControlSetting.garbleSound);
-            const next = (current + 1 + GARBLE_SOUND_PRESETS.length) % GARBLE_SOUND_PRESETS.length;
-            state.settings.ChatControlSetting.garbleSound = GARBLE_SOUND_PRESETS[next];
-            saveSettings(state.settings);
-            return;
-          }
-        }
-        if (MouseIn(LSCG_EXIT_BUTTON.x, LSCG_EXIT_BUTTON.y, LSCG_EXIT_BUTTON.w, LSCG_EXIT_BUTTON.h)) {
-          if (view === "ChatControl") {
+        if (MouseIn(PREFERENCE_EXT_EXIT.x, PREFERENCE_EXT_EXIT.y, PREFERENCE_EXT_EXIT.w, PREFERENCE_EXT_EXIT.h)) {
+          if (view === "ChatControl" || view === "OrgasmControl") {
             saveSettings(state.settings);
             view = "MainMenu";
           } else {
             saveSettings(state.settings);
             void PreferenceSubscreenExtensionsClear();
+          }
+          return;
+        }
+        if (view === "MainMenu") {
+          if (clickMainMenuEntry(0, 0)) {
+            view = "ChatControl";
+            return;
+          }
+          if (clickMainMenuEntry(0, 1)) {
+            view = "OrgasmControl";
+            return;
+          }
+          return;
+        }
+        if (view === "ChatControl") {
+          const xL = PREFERENCE_EXT_SUBSCREEN.START_X;
+          const y0 = preferenceExtSubscreenRowY(0);
+          if (MouseIn(
+            xL + 600,
+            y0 - 32,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE
+          )) {
+            state.settings.ChatControlSetting.customGarbleEnabled = !state.settings.ChatControlSetting.customGarbleEnabled;
+            saveSettings(state.settings);
+            return;
+          }
+          const y1 = preferenceExtSubscreenRowY(1);
+          if (MouseIn(
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_X,
+            y1 - 20,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+          )) {
+            const current = GARBLE_SOUND_PRESETS.indexOf(state.settings.ChatControlSetting.garbleSound);
+            const next = (current + 1 + GARBLE_SOUND_PRESETS.length) % GARBLE_SOUND_PRESETS.length;
+            state.settings.ChatControlSetting.garbleSound = GARBLE_SOUND_PRESETS[next];
+            saveSettings(state.settings);
+          }
+          return;
+        }
+        if (view === "OrgasmControl") {
+          const y0 = preferenceExtSubscreenRowY(0);
+          if (MouseIn(
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_X,
+            y0 - 20,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+          )) {
+            const h = state.settings.OrgasmControlSetting.hornyLevel;
+            state.settings.OrgasmControlSetting.hornyLevel = (h + 1) % 11;
+            saveSettings(state.settings);
           }
         }
       },
@@ -494,6 +665,60 @@ One of mods you are using is using an old version of SDK. It will work for now b
     });
   }
 
+  // src/orgasm-control/hook.ts
+  var installed2 = false;
+  var lilianArousalBoostDepth = 0;
+  function applyHornyCapToActivitySetArousalTimerArgs(args, hornyLevel) {
+    const capBonus = hornyLevel * 10;
+    const Activity = args[1];
+    const Zone = args[2];
+    if (Activity == null) {
+      const syn = {
+        Name: "",
+        MaxProgress: Math.min(100, 100 + capBonus)
+      };
+      if (Zone === "ActivityOnOther") {
+        syn.MaxProgressSelf = Math.min(100, 67 + capBonus);
+      }
+      args[1] = syn;
+      return;
+    }
+    const baseMp = Activity.MaxProgress == null || Activity.MaxProgress > 100 ? 100 : Activity.MaxProgress;
+    const clone = { ...Activity };
+    clone.MaxProgress = Math.min(100, baseMp + capBonus);
+    if (Zone === "ActivityOnOther") {
+      const baseSelf = Activity.MaxProgressSelf != null ? Activity.MaxProgressSelf : 67;
+      clone.MaxProgressSelf = Math.min(100, baseSelf + capBonus);
+    }
+    args[1] = clone;
+  }
+  function installOrgasmControlHooks(mod, getSettings) {
+    if (installed2) return;
+    installed2 = true;
+    mod.hookFunction("ActivitySetArousalTimer", 50, (args, next) => {
+      const C = args[0];
+      const horny = getSettings().OrgasmControlSetting.hornyLevel;
+      if (!C.IsPlayer() || horny <= 0) {
+        return next(args);
+      }
+      lilianArousalBoostDepth++;
+      try {
+        applyHornyCapToActivitySetArousalTimerArgs(args, horny);
+        return next(args);
+      } finally {
+        lilianArousalBoostDepth--;
+      }
+    });
+    mod.hookFunction("PreferenceGetZoneOrgasm", 50, (args, next) => {
+      var _a, _b;
+      const v = next(args);
+      if (lilianArousalBoostDepth > 0 && ((_b = (_a = args[0]) == null ? void 0 : _a.IsPlayer) == null ? void 0 : _b.call(_a))) {
+        return true;
+      }
+      return v;
+    });
+  }
+
   // src/index.ts
   function canBootstrap() {
     return typeof Player !== "undefined" && typeof PreferenceRegisterExtensionSetting === "function" && typeof ServerPlayerExtensionSettingsSync === "function";
@@ -510,6 +735,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
       version: SETTINGS_VERSION.replace(/^v/i, "")
     });
     installChatGarbleHook(mod, () => state.settings);
+    installOrgasmControlHooks(mod, () => state.settings);
     registerPreferencesExtension(state);
     window.LilianMod_Loaded = true;
   }
