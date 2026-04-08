@@ -46,6 +46,7 @@ declare global {
     click: () => void;
     exit?: () => void;
     unload?: () => void;
+    resize?: (onLoad: boolean) => void;
   }
 
   const Player: PlayerCharacter;
@@ -59,6 +60,15 @@ declare global {
 
   function PreferenceRegisterExtensionSetting(setting: BCPreferenceExtensionSetting): void;
   function PreferenceSubscreenExtensionsClear(): Promise<void>;
+  function ElementCreateInput(
+    ID: string | null,
+    Type: string,
+    Value?: string | null,
+    MaxLength?: number | string | null
+  ): HTMLInputElement;
+  function ElementPosition(ElementOrID: string, X: number, Y: number, W: number, H?: number): void;
+  function ElementRemove(elementOrId: string | HTMLElement | null): void;
+  function ElementValue(ID: string, Value?: string | null): string;
   function ServerPlayerExtensionSettingsSync(dataKeyName: string): void;
   var ChatRoomGenerateChatRoomChatMessage: (
     type: "Chat" | "Whisper" | "Emote",

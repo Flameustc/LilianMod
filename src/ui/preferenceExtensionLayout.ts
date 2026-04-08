@@ -1,7 +1,9 @@
 /**
- * 偏好扩展（PreferenceRegisterExtensionSetting）画面布局常量。
- * 尺寸与排布借鉴常见成熟 BC 模组的美观实践；不要求与任何特定第三方仓库保持一致。
+ * 偏好扩展（PreferenceRegisterExtensionSetting）画面布局常量.
+ * 子屏横向刻度与 LSCG `GuiSubscreen`（START_X / 标签 600 / 控件列 +750）对齐。
  */
+
+const SUB_X0 = 180;
 
 export const PREFERENCE_EXT_MAIN_MENU = {
   ORIGIN_X: 150,
@@ -18,12 +20,15 @@ export const PREFERENCE_EXT_MAIN_MENU = {
 } as const;
 
 export const PREFERENCE_EXT_SUBSCREEN = {
-  START_X: 180,
+  START_X: SUB_X0,
   START_Y: 205,
   Y_MOD: 75,
   TITLE_Y: 130,
   LABEL_WIDTH: 600,
-  CONTROL_X: 930,
+  /** 勾选框左缘，同 LSCG `getXPos(i) + 600` */
+  CHECKBOX_LEFT: SUB_X0 + 600,
+  /** `ElementPosition` 横坐标（控件水平中心），同 LSCG `getXPos(i) + 750` */
+  CONTROL_CENTER_X: SUB_X0 + 750,
   CONTROL_W: 300,
   CONTROL_BTN_H: 50,
   CHECKBOX_SIZE: 64,
