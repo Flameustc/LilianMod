@@ -9,10 +9,14 @@ let lilianArousalBoostDepth = 0;
 
 function forcePreparePlayerOrgasm(C: BCCharacter): void {
   const g = globalThis as Record<string, unknown>;
-  g.ActivityOrgasmRuined = false;
-
   const arousal = C.ArousalSettings as BCCharacter["ArousalSettings"] & { OrgasmTimer?: number; OrgasmStage?: number };
   const now = typeof g.CurrentTime === "number" ? (g.CurrentTime as number) : Date.now();
+  const activeTimer = typeof arousal.OrgasmTimer === "number" && arousal.OrgasmTimer > now;
+  if (activeTimer) {
+    // Already in orgasm countdown/game; avoid reinitializing timer and resync spam.
+    return;
+  }
+  g.ActivityOrgasmRuined = false;
   const timer = now + 5000;
   arousal.OrgasmTimer = timer;
   arousal.OrgasmStage = 0;
