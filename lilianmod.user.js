@@ -830,9 +830,13 @@ One of mods you are using is using an old version of SDK. It will work for now b
   var lilianArousalBoostDepth = 0;
   function forcePreparePlayerOrgasm(C) {
     const g = globalThis;
-    g.ActivityOrgasmRuined = false;
     const arousal = C.ArousalSettings;
     const now = typeof g.CurrentTime === "number" ? g.CurrentTime : Date.now();
+    const activeTimer = typeof arousal.OrgasmTimer === "number" && arousal.OrgasmTimer > now;
+    if (activeTimer) {
+      return;
+    }
+    g.ActivityOrgasmRuined = false;
     const timer = now + 5e3;
     arousal.OrgasmTimer = timer;
     arousal.OrgasmStage = 0;
