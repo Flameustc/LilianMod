@@ -22,6 +22,7 @@ export const PREFERENCE_EXT_MAIN_MENU = {
 export const PREFERENCE_EXT_SUBSCREEN = {
   START_X: SUB_X0,
   START_Y: 205,
+  /** 行距；标签悬停框高度 64、顶边 y = 行基线 −32，故需 Y_MOD ≥ 64 才不重叠（现余 11px 间隙） */
   Y_MOD: 75,
   TITLE_Y: 130,
   LABEL_WIDTH: 600,
@@ -36,6 +37,14 @@ export const PREFERENCE_EXT_SUBSCREEN = {
 
 export const PREFERENCE_EXT_EXIT = { x: 1815, y: 75, w: 90, h: 90 } as const;
 export const PREFERENCE_EXT_HELP = { x: 1815, y: 820, w: 90, h: 90 } as const;
+
+/** 底部说明条，与 LSCG `drawTooltip(300, 850, 1400, …, "left")` 一致 */
+export const PREFERENCE_EXT_TOOLTIP_BAR = {
+  X: 300,
+  Y: 850,
+  W: 1400,
+  H: 65,
+} as const;
 
 export function preferenceExtMainMenuSlot(px: number, py: number): { x: number; y: number } {
   return {

@@ -92,6 +92,8 @@ declare global {
   ): void;
   function DrawImageResize(path: string, x: number, y: number, width: number, height: number): void;
   function DrawTextFit(text: string, x: number, y: number, width: number, color: string, backgroundColor?: string): void;
+  function DrawRect(left: number, top: number, width: number, height: number, color: string): void;
+  function DrawEmptyRect(left: number, top: number, width: number, height: number, color: string, thickness?: number): void;
   function DrawCheckbox(
     left: number,
     top: number,

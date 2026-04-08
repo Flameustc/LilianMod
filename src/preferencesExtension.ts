@@ -5,6 +5,7 @@ import {
   PREFERENCE_EXT_HELP,
   PREFERENCE_EXT_MAIN_MENU,
   PREFERENCE_EXT_SUBSCREEN,
+  PREFERENCE_EXT_TOOLTIP_BAR,
   preferenceExtMainMenuSlot,
   preferenceExtSubscreenRowY,
 } from "./ui/preferenceExtensionLayout";
@@ -16,7 +17,7 @@ const PREF_INPUT_GARBLE = `${PLUGIN_KEY}-pref-garble-sound`;
 const PREF_INPUT_HORNY = `${PLUGIN_KEY}-pref-horny-level`;
 const GARBLE_SOUND_MAX_LEN = 24;
 
-/** 与 BC 原生 DrawButton 悬浮层一致（黄底提示框），社区模组常见做法 */
+/** 悬停配置项名称时于底部条展示（行为对齐 LSCG `Tooltip` + `drawTooltip`） */
 const TT_CUSTOM_GARBLE =
   "开启后，使用下方自定义拟声字参与堵嘴含糊；关闭则走游戏原版逻辑。";
 const TT_GARBLE_SOUND =
@@ -24,16 +25,15 @@ const TT_GARBLE_SOUND =
 const TT_HORNY_LEVEL =
   "兴奋等级 0–10。数值 ×10 会并入各类行为导致的 arousal 封顶（最大 100）；封顶至 100 时可触发高潮。";
 
-function prefHelpButtonLeft(xL: number): number {
-  return xL + 558;
-}
-
-function prefHelpButtonTop(row: number): number {
-  return preferenceExtSubscreenRowY(row) - 36;
-}
-
-function drawPrefHelpHover(xL: number, row: number, tooltip: string): void {
-  DrawButton(prefHelpButtonLeft(xL), prefHelpButtonTop(row), 40, 40, "?", "White", "", tooltip);
+function drawPreferenceTooltipBar(text: string): void {
+  const { X: x, Y: y, W: w, H: h } = PREFERENCE_EXT_TOOLTIP_BAR;
+  const canvas = MainCanvas;
+  const bak = canvas.textAlign;
+  canvas.textAlign = "left";
+  DrawRect(x, y, w, h, "#FFFF88");
+  DrawEmptyRect(x, y, w, h, "black", 2);
+  DrawTextFit(text, x + 3, y + 33, w - 6, "black");
+  canvas.textAlign = bak;
 }
 
 function drawExtensionExitAndHelp(): void {
@@ -257,7 +257,6 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
           hover0 ? "Red" : "Black",
           "Gray"
         );
-        drawPrefHelpHover(xL, 0, TT_CUSTOM_GARBLE);
 
         const y1 = preferenceExtSubscreenRowY(1);
         const hover1 = MouseIn(xL, y1 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
@@ -269,7 +268,13 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
           hover1 ? "Red" : "Black",
           "Gray"
         );
-        drawPrefHelpHover(xL, 1, TT_GARBLE_SOUND);
+
+        if (hover0) {
+          drawPreferenceTooltipBar(TT_CUSTOM_GARBLE);
+        }
+        if (hover1) {
+          drawPreferenceTooltipBar(TT_GARBLE_SOUND);
+        }
       } else {
         ensurePreferenceExtensionInputs("OrgasmControl");
         positionPreferenceExtensionInput("OrgasmControl", 0);
@@ -294,7 +299,9 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
           hover0 ? "Red" : "Black",
           "Gray"
         );
-        drawPrefHelpHover(xL, 0, TT_HORNY_LEVEL);
+        if (hover0) {
+          drawPreferenceTooltipBar(TT_HORNY_LEVEL);
+        }
       }
 
       MainCanvas.textAlign = previousAlign;
