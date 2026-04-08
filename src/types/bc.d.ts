@@ -22,10 +22,13 @@ export interface BCCharacter {
   ArousalSettings: {
     Progress: number;
     ProgressTimer: number;
+    OrgasmTimer?: number | null;
   };
 }
 
 declare global {
+  var CurrentTime: number;
+
   interface PlayerCharacter {
     MemberNumber: number;
     ExtensionSettings?: Record<string, string>;

@@ -1,5 +1,6 @@
 export const PLUGIN_KEY = "LilianMod";
-export const SETTINGS_VERSION = "v0.1.0";
+/** 仅写入存盘元数据（如新于旧备份比对），不参与「能否加载」判断。 */
+export const SETTINGS_VERSION = "v0.2.0";
 const BACKUP_SUFFIX = "Backup";
 
 export interface ChatControlSetting {
@@ -7,9 +8,13 @@ export interface ChatControlSetting {
   garbleSound: string;
 }
 
-/** 0–10：对应施加在所有行为上的兴奋加成（×10 并入 arousal cap，封顶 100）。 */
+/** 敏感度等级（Sensitivity level）0–10：施加于各类行为的 arousal 封顶加成（×10 并入 cap，封顶 100）。 */
 export interface OrgasmControlSetting {
-  hornyLevel: number;
+  sensitivityLevel: number;
+  /** 强制高潮：在 BCX `alt_control_orgasms` 等阻断高潮时累积欲望，超阈值则绕过阻断进入高潮流程 */
+  forceOrgasmEnabled: boolean;
+  /** 累积欲望超过该值（0–100）时触发一次原的高潮准备（不含 Hooks） */
+  forceOrgasmDesireThreshold: number;
 }
 
 export interface LilianSettings {
@@ -24,7 +29,9 @@ export function getDefaultSettings(): LilianSettings {
       garbleSound: "呜",
     },
     OrgasmControlSetting: {
-      hornyLevel: 0,
+      sensitivityLevel: 0,
+      forceOrgasmEnabled: false,
+      forceOrgasmDesireThreshold: 80,
     },
   };
 }
@@ -33,32 +40,60 @@ export function getBackupStorageKey(memberNumber: number): string {
   return `${PLUGIN_KEY}_${memberNumber}_${BACKUP_SUFFIX}`;
 }
 
+/**
+ * 从任意存盘对象裁剪为当前 `LilianSettings`：
+ * 只读取当前 schema 中存在的配置项；存盘里多余字段一律忽略；
+ * 某项缺失或类型/取值不兼容则该项用默认值。
+ */
 export function sanitizeSettings(input: unknown): LilianSettings {
   const fallback = getDefaultSettings();
   if (!input || typeof input !== "object") return fallback;
-  const raw = input as Partial<LilianSettings> & {
-    OrgasmManagementSetting?: Partial<OrgasmControlSetting>;
-  };
-  const chatControl = raw.ChatControlSetting as Partial<ChatControlSetting> | undefined;
-  const orgasm =
-    raw.OrgasmControlSetting
-    ?? raw.OrgasmManagementSetting;
-  let horny = typeof orgasm?.hornyLevel === "number" && Number.isFinite(orgasm.hornyLevel)
-    ? Math.floor(orgasm.hornyLevel)
-    : fallback.OrgasmControlSetting.hornyLevel;
-  if (horny < 0) horny = 0;
-  if (horny > 10) horny = 10;
+  const raw = input as Record<string, unknown>;
+
+  const chatControl = raw.ChatControlSetting;
+  const orgasm = raw.OrgasmControlSetting;
+
+  let sensitivityLevel = fallback.OrgasmControlSetting.sensitivityLevel;
+  let forceOrgasmEnabled = fallback.OrgasmControlSetting.forceOrgasmEnabled;
+  let forceOrgasmDesireThreshold = fallback.OrgasmControlSetting.forceOrgasmDesireThreshold;
+  if (orgasm && typeof orgasm === "object") {
+    const o = orgasm as Record<string, unknown>;
+    const ov = o.sensitivityLevel;
+    if (typeof ov === "number" && Number.isFinite(ov)) {
+      sensitivityLevel = Math.floor(ov);
+      if (sensitivityLevel < 0) sensitivityLevel = 0;
+      if (sensitivityLevel > 10) sensitivityLevel = 10;
+    }
+    if (typeof o.forceOrgasmEnabled === "boolean") {
+      forceOrgasmEnabled = o.forceOrgasmEnabled;
+    }
+    const th = o.forceOrgasmDesireThreshold;
+    if (typeof th === "number" && Number.isFinite(th)) {
+      forceOrgasmDesireThreshold = Math.min(100, Math.max(0, Math.floor(th)));
+    }
+  }
+
+  let customGarbleEnabled = fallback.ChatControlSetting.customGarbleEnabled;
+  let garbleSound = fallback.ChatControlSetting.garbleSound;
+  if (chatControl && typeof chatControl === "object") {
+    const c = chatControl as Record<string, unknown>;
+    if (typeof c.customGarbleEnabled === "boolean") {
+      customGarbleEnabled = c.customGarbleEnabled;
+    }
+    if (typeof c.garbleSound === "string" && c.garbleSound.trim().length > 0) {
+      garbleSound = c.garbleSound;
+    }
+  }
+
   return {
     ChatControlSetting: {
-      customGarbleEnabled: typeof chatControl?.customGarbleEnabled === "boolean"
-        ? chatControl.customGarbleEnabled
-        : fallback.ChatControlSetting.customGarbleEnabled,
-      garbleSound: typeof chatControl?.garbleSound === "string" && chatControl.garbleSound.trim().length > 0
-        ? chatControl.garbleSound
-        : fallback.ChatControlSetting.garbleSound,
+      customGarbleEnabled,
+      garbleSound,
     },
     OrgasmControlSetting: {
-      hornyLevel: horny,
+      sensitivityLevel,
+      forceOrgasmEnabled,
+      forceOrgasmDesireThreshold,
     },
   };
 }

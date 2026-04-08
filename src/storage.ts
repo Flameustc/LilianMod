@@ -27,25 +27,33 @@ function parseSettings(raw: string | null): PersistedSettings | null {
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object") return null;
 
-    // Backward compatibility: old format stored settings object directly.
-    if (!("settings" in parsed)) {
-      return {
-        settings: sanitizeSettings(parsed),
-        version: "v0.0.0",
-        updatedAt: 0,
-      };
+    const o = parsed as Record<string, unknown>;
+    let settingsSource: unknown = parsed;
+    let storedVersion = "v0.0.0";
+    let updatedAt = 0;
+
+    if ("settings" in o) {
+      const inner = o.settings;
+      if (inner != null && typeof inner === "object") {
+        settingsSource = inner;
+      } else {
+        settingsSource = {};
+      }
     }
 
-    const wrapped = parsed as { settings?: unknown; updatedAt?: unknown; version?: unknown; Version?: unknown };
-    const storedVersion = typeof wrapped.version === "string"
-      ? wrapped.version
-      : typeof wrapped.Version === "string"
-        ? wrapped.Version
-        : "v0.0.0";
+    if (typeof o.version === "string") {
+      storedVersion = o.version;
+    } else if (typeof o.Version === "string") {
+      storedVersion = o.Version;
+    }
+    if (typeof o.updatedAt === "number") {
+      updatedAt = o.updatedAt;
+    }
+
     return {
-      settings: sanitizeSettings(wrapped.settings),
+      settings: sanitizeSettings(settingsSource),
       version: storedVersion,
-      updatedAt: typeof wrapped.updatedAt === "number" ? wrapped.updatedAt : 0,
+      updatedAt,
     };
   } catch {
     return null;

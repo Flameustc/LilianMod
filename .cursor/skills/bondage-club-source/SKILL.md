@@ -5,6 +5,7 @@ description: >-
   (both use bondage-club-mod-sdk). Use when implementing or debugging LilianMod,
   tracing runtime behavior, or when the user mentions BondageClub, BCX, BC
   globals in bc.d.ts, or D:/gitgud/Bondage-College / bondage-club-extended paths.
+  For LilianMod preference / extension UI work, follow the UI standard section below.
 ---
 
 # Bondage Club 源码辅助
@@ -58,26 +59,43 @@ description: >-
 3. 用仓库内搜索查找 **赋值处、分支、早退条件**（BC 常用全局状态变量，名称较长但稳定）。
 4. 若与联机相关协议有关，对照 `Scripts/Server.js` 及消息类型处理分支，注意 **客户端校验与服务端字段** 可能分处不同文件。
 
-## LilianMod 扩展偏好界面（美观参考，非兼容义务）
+## LilianMod 偏好扩展 UI 标准（后续开发须遵循）
 
-`PreferenceRegisterExtensionSetting` 的配置页应**清晰、易读**，并与 Bondage Club 原生偏好里常见的扩展屏**观感协调**（疏密、颜色、`DrawText` / `DrawTextFit` / `DrawButton` / `DrawCheckbox` 的搭配）。具体像素与排布借鉴了社区中**公认较美观**的一类实现，仅作 aesthetic 参考：**不要求**与任何特定第三方插件保持 UI 兼容或随其版本同步；代码与注释里也**不要绑定**具体第三方项目名称。
+`PreferenceRegisterExtensionSetting` 子屏已按 **Bondage Club 常见扩展屏 + 与 LSCG `GuiSubscreen` 横向刻度对齐** 定稿。新增子屏或配置行时**延续同一模式**，优先改 **`src/ui/preferenceExtensionLayout.ts`** 常量，避免在 `preferencesExtension.ts` 里散落魔法数。
 
-若需要找灵感，可在本机任意并列克隆的 BC 模组仓库中自行翻阅其 Settings / 偏好相关源码；对齐的是**模式**（例如主菜单卡片网格、子屏左标签右控件列），不是逐文件复刻。
+### 布局常量（`preferenceExtensionLayout.ts`）
 
-### 建议遵循的布局与控件习惯
+- **子屏标题**：`DrawText(..., START_X, TITLE_Y, "Black", "#D7F6E9")`（当前 `START_X=180`，`TITLE_Y=130`）。
+- **内容行**：首行文字基线 **`START_Y=205`**，行距 **`Y_MOD=75`**。行号 `row` 的基线用 **`preferenceExtSubscreenRowY(row)`**。
+- **标签列**：`DrawTextFit(label, START_X, rowY, LABEL_WIDTH, …)`，**`LABEL_WIDTH=600`**。默认 **Black** / **Gray**；**仅当**指针在标签悬停框内时为 **Red**（见下节）。
+- **勾选框**：左缘 **`CHECKBOX_LEFT = START_X + 600`**（与 LSCG `getXPos(i) + 600` 一致）；**顶边 `rowY - 32`**，**`CHECKBOX_SIZE` 64×64**；`click` 命中区与同位置一致。
+- **文本 / 数字框**：**`ElementCreateInput`** + **`ElementPosition`**。传入的横坐标为 **`CONTROL_CENTER_X = START_X + 750`**（与 LSCG 一致）；在 BondageClub 里该参数是 **控件水平中心**，**`CONTROL_W=300`** 时控件左缘与 **`CHECKBOX_LEFT`** 对齐。纵向位置与 **`CONTROL_BTN_H`** 等与 `preferencesExtension.ts` 中行内约定一致。
+- **主菜单入口**：**`PREFERENCE_EXT_MAIN_MENU`**——原点 (150, 190)、步进 (480, 120)、格内 450×90、图标与 `DrawTextFit` 内边距按常量。
+- **退出 / 说明**：**`PREFERENCE_EXT_EXIT`** (1815, 75, 90×90，`Icons/Exit.png`)、**`PREFERENCE_EXT_HELP`** (1815, 820, 90×90，`Icons/Introduction.png`)。
+- **`MainCanvas.textAlign`**：子屏 `run` 内常用 **`left`**；分支结束或 `return` 前恢复进入时的对齐。
 
-- **子屏标题**：`DrawText(..., x=180, y=130, "Black", "#D7F6E9")`（常见写法为子屏首行基线 205 减去行距 75）。
-- **子屏内容列**：标签列起点 **180**，首行基线 **205**，行间 **`Y_MOD = 75`**。
-- **勾选**：标签 `DrawTextFit` 宽约 **600**，**Black** / **Gray**，标签区悬停 **Red**；**`DrawCheckbox`** 在标签右侧 **`x + 600`**, **`y - 32`**, **64×64**。
-- **非布尔控件列**：常见为 **`START_X + 750 = 930`**，宽约 **300**；轻量场景可用 **`DrawButton`** 显示当前值并点击轮换。
-- **主菜单模块入口**：原点 **(150, 190)**，步进 **(480, 120)**，格内按钮 **450×90**，图标约 **70×70**、内边距 **10**；`DrawTextFit` 标签约 **`x+100`、`y+45`、宽 340**。不可用项可用按钮色 **`#ddd`** 并写明 hover 说明。
-- **退出**：**`DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", "Main Menu")`**。
-- **说明图标**：子屏右下角 **1815, 820, 90×90**，常用 **`Icons/Introduction.png`**；是否在 `click` 中打开外链由模组自定。
-- **`MainCanvas.textAlign`**：主菜单每一格内常在 **`center`**（画按钮）与 **`left`**（画标签）之间切换；子屏结束前恢复进入 `run` 时的对齐方式。
+### 配置项说明（底部说明条 + 仅标签悬停）
 
-### 落地文件
+- **不要**为单条配置画 **`?` 按钮**或用 **`DrawButton` 的 hover 文案**充当说明。
+- **仅**当指针在**配置项名称**（标签）矩形内：标签 **Red**，并在**画布下方**绘制说明条。
+- 说明条使用 **`PREFERENCE_EXT_TOOLTIP_BAR`**：**x=300, y=850, w=1400, h=65**，与 LSCG `drawTooltip(300, 850, 1400, text, "left")` 一致；实现为 **`DrawRect` 填 `#FFFF88`** + **`DrawEmptyRect` 黑边 2px** + **`DrawTextFit(text, x+3, y+33, w-6, "black")`**；所需绘制 API 在 **`bc.d.ts`** 中声明。
+- **标签悬停命中**：**`MouseIn(START_X, rowY - 32, LABEL_WIDTH, 64)`**。相邻行竖向不重叠的条件是 **`Y_MOD ≥ 64`**（当前 75）; 多行可同时各自 `if (hover)` 画说明条，**不必** `else if` 定优先级。
 
-尺寸集中放在 **`src/ui/preferenceExtensionLayout.ts`**（`PREFERENCE_EXT_*`、`preferenceExtMainMenuSlot`、`preferenceExtSubscreenRowY`）；新项优先从该处取常量，避免魔法数散落。
+### 控件类型与输入生命周期
+
+- **布尔**：**`DrawCheckbox` + `click`**，无 HTML 控件。
+- **需键入的值**：**`ElementCreateInput`**，在 **`change` / `blur`** 中校验并持久化；每帧 **`ElementPosition`**。进入**主菜单**或 **`unload` / `exit`** 时对扩展创建的 input **`ElementRemove`**。
+
+如需下拉等非行内原生控件，仍应保持标签/说明条/hover 规则一致，并单独考虑 `ElementRemove` 与 `run` 中隐藏/定位。
+
+### 实现入口
+
+- **`src/preferencesExtension.ts`**：子屏状态、绘制、`click`、`load` / `unload` / `exit`、输入挂载与拆除。
+- 新增一行：**先在 `preferenceExtensionLayout.ts` 补或复用常量**，再在 `preferencesExtension.ts` 增加行号、`hover`、文案与（若有）input。
+
+### 可选对照（本机并列克隆）
+
+LSCG 中同类刻度与 `drawTooltip`：`D:/gitgud/LSCG/src/Settings/settingBase.ts`、`settingUtils.ts`。对齐的是**刻度与交互**，不在 LilianMod 内复制其业务实现。
 
 ## 与插件协作的注意点
 
