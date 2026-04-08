@@ -22,13 +22,12 @@ export interface BCCharacter {
   ArousalSettings: {
     Progress: number;
     ProgressTimer: number;
-    OrgasmTimer?: number | null;
+    OrgasmTimer?: number;
+    OrgasmStage?: number;
   };
 }
 
 declare global {
-  var CurrentTime: number;
-
   interface PlayerCharacter {
     MemberNumber: number;
     ExtensionSettings?: Record<string, string>;
@@ -55,6 +54,8 @@ declare global {
   const Player: PlayerCharacter;
   const MouseX: number;
   const MouseY: number;
+  const CurrentTime: number;
+  const CurrentCharacter: { ID: number } | null;
   const MainCanvas: CanvasRenderingContext2D;
   class DictionaryBuilder {
     sourceCharacter(character: PlayerCharacter): DictionaryBuilder;
@@ -81,6 +82,7 @@ declare global {
   function SpeechGetOOCRanges(msg: string): Array<{ start: number; length: number }>;
   function SpeechTransformGagGarbleIntensity(character: PlayerCharacter): number;
   function ChatRoomMessageReplyStop(): void;
+  function DialogLeave(): void;
 
   function DrawText(text: string, x: number, y: number, color: string, backgroundColor?: string): void;
   function DrawButton(
@@ -112,4 +114,6 @@ declare global {
 
   function PreferenceGetZoneOrgasm(character: BCCharacter, zone: string): boolean;
   function ActivityChatRoomArousalSync(character: BCCharacter): void;
+  var ActivityOrgasmRuined: boolean;
+  var ActivityOrgasmGameTimer: number;
 } 

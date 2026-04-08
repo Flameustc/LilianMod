@@ -11,10 +11,7 @@ export interface ChatControlSetting {
 /** 敏感度等级（Sensitivity level）0–10：施加于各类行为的 arousal 封顶加成（×10 并入 cap，封顶 100）。 */
 export interface OrgasmControlSetting {
   sensitivityLevel: number;
-  /** 强制高潮：在 BCX `alt_control_orgasms` 等阻断高潮时累积欲望，超阈值则绕过阻断进入高潮流程 */
   forceOrgasmEnabled: boolean;
-  /** 累积欲望超过该值（0–100）时触发一次原的高潮准备（不含 Hooks） */
-  forceOrgasmDesireThreshold: number;
 }
 
 export interface LilianSettings {
@@ -31,7 +28,6 @@ export function getDefaultSettings(): LilianSettings {
     OrgasmControlSetting: {
       sensitivityLevel: 0,
       forceOrgasmEnabled: false,
-      forceOrgasmDesireThreshold: 80,
     },
   };
 }
@@ -55,7 +51,6 @@ export function sanitizeSettings(input: unknown): LilianSettings {
 
   let sensitivityLevel = fallback.OrgasmControlSetting.sensitivityLevel;
   let forceOrgasmEnabled = fallback.OrgasmControlSetting.forceOrgasmEnabled;
-  let forceOrgasmDesireThreshold = fallback.OrgasmControlSetting.forceOrgasmDesireThreshold;
   if (orgasm && typeof orgasm === "object") {
     const o = orgasm as Record<string, unknown>;
     const ov = o.sensitivityLevel;
@@ -66,10 +61,6 @@ export function sanitizeSettings(input: unknown): LilianSettings {
     }
     if (typeof o.forceOrgasmEnabled === "boolean") {
       forceOrgasmEnabled = o.forceOrgasmEnabled;
-    }
-    const th = o.forceOrgasmDesireThreshold;
-    if (typeof th === "number" && Number.isFinite(th)) {
-      forceOrgasmDesireThreshold = Math.min(100, Math.max(0, Math.floor(th)));
     }
   }
 
@@ -93,7 +84,6 @@ export function sanitizeSettings(input: unknown): LilianSettings {
     OrgasmControlSetting: {
       sensitivityLevel,
       forceOrgasmEnabled,
-      forceOrgasmDesireThreshold,
     },
   };
 }
