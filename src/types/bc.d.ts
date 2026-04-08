@@ -1,5 +1,30 @@
 export {};
 
+/** Minimal BondageClub types for orgasm-control hooks */
+export interface BCAssetGroupRef {
+  Name: string;
+}
+
+export interface BCAsset {
+  Name: string;
+  Group: BCAssetGroupRef;
+}
+
+export interface BCActivity {
+  Name: string;
+  MaxProgress?: number | null;
+  MaxProgressSelf?: number | null;
+}
+
+export interface BCCharacter {
+  ID: number;
+  IsPlayer(): boolean;
+  ArousalSettings: {
+    Progress: number;
+    ProgressTimer: number;
+  };
+}
+
 declare global {
   interface PlayerCharacter {
     MemberNumber: number;
@@ -57,5 +82,19 @@ declare global {
   ): void;
   function DrawImageResize(path: string, x: number, y: number, width: number, height: number): void;
   function DrawTextFit(text: string, x: number, y: number, width: number, color: string, backgroundColor?: string): void;
+  function DrawCheckbox(
+    left: number,
+    top: number,
+    width: number,
+    height: number,
+    text: string,
+    isChecked: boolean,
+    disabled?: boolean,
+    textColor?: string,
+    checkImage?: string
+  ): void;
   function MouseIn(x: number, y: number, width: number, height: number): boolean;
+
+  function PreferenceGetZoneOrgasm(character: BCCharacter, zone: string): boolean;
+  function ActivityChatRoomArousalSync(character: BCCharacter): void;
 } 

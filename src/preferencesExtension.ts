@@ -1,32 +1,68 @@
 import { LilianSettings, PLUGIN_KEY } from "./settings";
 import { loadSettings, saveSettings } from "./storage";
+import {
+  PREFERENCE_EXT_EXIT,
+  PREFERENCE_EXT_HELP,
+  PREFERENCE_EXT_MAIN_MENU,
+  PREFERENCE_EXT_SUBSCREEN,
+  preferenceExtMainMenuSlot,
+  preferenceExtSubscreenRowY,
+} from "./ui/preferenceExtensionLayout";
 
-const MENU_BUTTON = {
-  x: 150,
-  y: 190,
-  w: 450,
-  h: 90,
-};
-const CUSTOM_GARBLE_BUTTON = {
-  x: 1200,
-  y: 260,
-  w: 560,
-  h: 90,
-};
-const GARBLE_SOUND_BUTTON = {
-  x: 1200,
-  y: 380,
-  w: 560,
-  h: 90,
-};
-const LSCG_EXIT_BUTTON = {
-  x: 1815,
-  y: 75,
-  w: 90,
-  h: 90,
-};
 const GARBLE_SOUND_PRESETS = ["呜", "嗯", "唔", "m"];
-type ExtensionView = "MainMenu" | "ChatControl";
+type ExtensionView = "MainMenu" | "ChatControl" | "OrgasmControl";
+
+const MAIN_ICON = "Icons/Preference.png";
+
+function drawExtensionExitAndHelp(): void {
+  DrawButton(
+    PREFERENCE_EXT_EXIT.x,
+    PREFERENCE_EXT_EXIT.y,
+    PREFERENCE_EXT_EXIT.w,
+    PREFERENCE_EXT_EXIT.h,
+    "",
+    "White",
+    "Icons/Exit.png",
+    "Main Menu"
+  );
+  DrawButton(
+    PREFERENCE_EXT_HELP.x,
+    PREFERENCE_EXT_HELP.y,
+    PREFERENCE_EXT_HELP.w,
+    PREFERENCE_EXT_HELP.h,
+    "",
+    "White",
+    "Icons/Introduction.png",
+    "LilianMod"
+  );
+}
+
+function drawMainMenuEntry(px: number, py: number, icon: string, label: string): void {
+  const { x, y } = preferenceExtMainMenuSlot(px, py);
+  MainCanvas.textAlign = "center";
+  DrawButton(x, y, PREFERENCE_EXT_MAIN_MENU.BTN_W, PREFERENCE_EXT_MAIN_MENU.BTN_H, "", "White");
+  DrawImageResize(
+    icon,
+    x + PREFERENCE_EXT_MAIN_MENU.ICON_PAD,
+    y + PREFERENCE_EXT_MAIN_MENU.ICON_PAD,
+    PREFERENCE_EXT_MAIN_MENU.ICON_SIZE,
+    PREFERENCE_EXT_MAIN_MENU.ICON_SIZE
+  );
+  MainCanvas.textAlign = "left";
+  DrawTextFit(
+    label,
+    x + PREFERENCE_EXT_MAIN_MENU.TEXT_INNER_X,
+    y + PREFERENCE_EXT_MAIN_MENU.TEXT_BASELINE_OFFSET,
+    PREFERENCE_EXT_MAIN_MENU.TEXT_MAX_W,
+    "Black"
+  );
+  MainCanvas.textAlign = "center";
+}
+
+function clickMainMenuEntry(px: number, py: number): boolean {
+  const { x, y } = preferenceExtMainMenuSlot(px, py);
+  return MouseIn(x, y, PREFERENCE_EXT_MAIN_MENU.BTN_W, PREFERENCE_EXT_MAIN_MENU.BTN_H);
+}
 
 export function registerPreferencesExtension(state: { settings: LilianSettings }): void {
   let view: ExtensionView = "MainMenu";
@@ -34,79 +70,193 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
   PreferenceRegisterExtensionSetting({
     Identifier: PLUGIN_KEY,
     ButtonText: "LilianMod",
+    Image: MAIN_ICON,
     load: () => {
-      // Always reload when opening the page to avoid stale in-memory values.
       state.settings = loadSettings();
       view = "MainMenu";
     },
     run: () => {
       const previousAlign = MainCanvas.textAlign;
-      MainCanvas.textAlign = "left";
+
       if (view === "MainMenu") {
-        DrawText("- LilianMod Settings -", 180, 130, "Black", "#D7F6E9");
-        DrawButton(MENU_BUTTON.x, MENU_BUTTON.y, MENU_BUTTON.w, MENU_BUTTON.h, "", "White");
-        DrawImageResize("Icons/Preference.png", MENU_BUTTON.x + 10, MENU_BUTTON.y + 10, 70, 70);
-        DrawTextFit("ChatControl", MENU_BUTTON.x + 100, MENU_BUTTON.y + 45, 340, "Black");
-      } else {
-        DrawText("- LilianMod ChatControl -", 180, 130, "Black", "#D7F6E9");
-        DrawText("Custom gag garble", 820, 305, "White", "Gray");
-        DrawButton(
-          CUSTOM_GARBLE_BUTTON.x,
-          CUSTOM_GARBLE_BUTTON.y,
-          CUSTOM_GARBLE_BUTTON.w,
-          CUSTOM_GARBLE_BUTTON.h,
-          state.settings.ChatControlSetting.customGarbleEnabled ? "Enabled" : "Disabled",
-          state.settings.ChatControlSetting.customGarbleEnabled ? "Green" : "#888888"
+        MainCanvas.textAlign = "left";
+        DrawText(
+          `- LilianMod Settings -`,
+          PREFERENCE_EXT_SUBSCREEN.START_X,
+          PREFERENCE_EXT_SUBSCREEN.TITLE_Y,
+          "Black",
+          "#D7F6E9"
         );
-        DrawText("Garble sound", 820, 425, "White", "Gray");
-        DrawButton(
-          GARBLE_SOUND_BUTTON.x,
-          GARBLE_SOUND_BUTTON.y,
-          GARBLE_SOUND_BUTTON.w,
-          GARBLE_SOUND_BUTTON.h,
-          state.settings.ChatControlSetting.garbleSound,
-          "White"
-        );
-      }
-      DrawButton(
-        LSCG_EXIT_BUTTON.x,
-        LSCG_EXIT_BUTTON.y,
-        LSCG_EXIT_BUTTON.w,
-        LSCG_EXIT_BUTTON.h,
-        "",
-        "White",
-        "Icons/Exit.png",
-        "Main Menu"
-      );
-      MainCanvas.textAlign = previousAlign;
-    },
-    click: () => {
-      if (view === "MainMenu" && MouseIn(MENU_BUTTON.x, MENU_BUTTON.y, MENU_BUTTON.w, MENU_BUTTON.h)) {
-        view = "ChatControl";
+        drawMainMenuEntry(0, 0, MAIN_ICON, "ChatControl");
+        drawMainMenuEntry(0, 1, MAIN_ICON, "高潮控制");
+        MainCanvas.textAlign = previousAlign;
+        drawExtensionExitAndHelp();
         return;
       }
 
+      MainCanvas.textAlign = "left";
+
       if (view === "ChatControl") {
-        if (MouseIn(CUSTOM_GARBLE_BUTTON.x, CUSTOM_GARBLE_BUTTON.y, CUSTOM_GARBLE_BUTTON.w, CUSTOM_GARBLE_BUTTON.h)) {
-          state.settings.ChatControlSetting.customGarbleEnabled = !state.settings.ChatControlSetting.customGarbleEnabled;
-          saveSettings(state.settings);
-          return;
-        }
-        if (MouseIn(GARBLE_SOUND_BUTTON.x, GARBLE_SOUND_BUTTON.y, GARBLE_SOUND_BUTTON.w, GARBLE_SOUND_BUTTON.h)) {
-          const current = GARBLE_SOUND_PRESETS.indexOf(state.settings.ChatControlSetting.garbleSound);
-          const next = (current + 1 + GARBLE_SOUND_PRESETS.length) % GARBLE_SOUND_PRESETS.length;
-          state.settings.ChatControlSetting.garbleSound = GARBLE_SOUND_PRESETS[next];
-          saveSettings(state.settings);
-          return;
-        }
+        DrawText(
+          `- LilianMod ChatControl -`,
+          PREFERENCE_EXT_SUBSCREEN.START_X,
+          PREFERENCE_EXT_SUBSCREEN.TITLE_Y,
+          "Black",
+          "#D7F6E9"
+        );
+
+        const xL = PREFERENCE_EXT_SUBSCREEN.START_X;
+        const y0 = preferenceExtSubscreenRowY(0);
+        const hover0 = MouseIn(xL, y0 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+        DrawCheckbox(
+          xL + 600,
+          y0 - 32,
+          PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
+          PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
+          "",
+          state.settings.ChatControlSetting.customGarbleEnabled,
+          false
+        );
+        DrawTextFit(
+          "Custom gag garble",
+          xL,
+          y0,
+          PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+          hover0 ? "Red" : "Black",
+          "Gray"
+        );
+
+        const y1 = preferenceExtSubscreenRowY(1);
+        const hover1 = MouseIn(xL, y1 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+        DrawTextFit(
+          "Garble sound",
+          xL,
+          y1,
+          PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+          hover1 ? "Red" : "Black",
+          "Gray"
+        );
+        DrawButton(
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_X,
+          y1 - 20,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H,
+          state.settings.ChatControlSetting.garbleSound,
+          "White"
+        );
+      } else {
+        DrawText(
+          `- LilianMod 高潮控制 -`,
+          PREFERENCE_EXT_SUBSCREEN.START_X,
+          PREFERENCE_EXT_SUBSCREEN.TITLE_Y,
+          "Black",
+          "#D7F6E9"
+        );
+
+        const xL = PREFERENCE_EXT_SUBSCREEN.START_X;
+        const y0 = preferenceExtSubscreenRowY(0);
+        const hover0 = MouseIn(xL, y0 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+        DrawTextFit(
+          "兴奋等级 (0–10)",
+          xL,
+          y0,
+          PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+          hover0 ? "Red" : "Black",
+          "Gray"
+        );
+        DrawButton(
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_X,
+          y0 - 20,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H,
+          String(state.settings.OrgasmControlSetting.hornyLevel),
+          "White"
+        );
+
+        const y1 = preferenceExtSubscreenRowY(1);
+        const hover1 = MouseIn(xL, y1 - 32, 950, 64);
+        DrawTextFit(
+          "取值×10 并入所有行为的 arousal 封顶（最大 100）；封顶至 100 时可触发高潮。",
+          xL,
+          y1,
+          950,
+          hover1 ? "Red" : "Black",
+          "Gray"
+        );
       }
-      if (MouseIn(LSCG_EXIT_BUTTON.x, LSCG_EXIT_BUTTON.y, LSCG_EXIT_BUTTON.w, LSCG_EXIT_BUTTON.h)) {
-        if (view === "ChatControl") {
+
+      MainCanvas.textAlign = previousAlign;
+      drawExtensionExitAndHelp();
+    },
+    click: () => {
+      if (MouseIn(PREFERENCE_EXT_EXIT.x, PREFERENCE_EXT_EXIT.y, PREFERENCE_EXT_EXIT.w, PREFERENCE_EXT_EXIT.h)) {
+        if (view === "ChatControl" || view === "OrgasmControl") {
           saveSettings(state.settings);
           view = "MainMenu";
         } else {
           saveSettings(state.settings);
           void PreferenceSubscreenExtensionsClear();
+        }
+        return;
+      }
+
+      if (view === "MainMenu") {
+        if (clickMainMenuEntry(0, 0)) {
+          view = "ChatControl";
+          return;
+        }
+        if (clickMainMenuEntry(0, 1)) {
+          view = "OrgasmControl";
+          return;
+        }
+        return;
+      }
+
+      if (view === "ChatControl") {
+        const xL = PREFERENCE_EXT_SUBSCREEN.START_X;
+        const y0 = preferenceExtSubscreenRowY(0);
+        if (
+          MouseIn(
+            xL + 600,
+            y0 - 32,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE
+          )
+        ) {
+          state.settings.ChatControlSetting.customGarbleEnabled = !state.settings.ChatControlSetting.customGarbleEnabled;
+          saveSettings(state.settings);
+          return;
+        }
+        const y1 = preferenceExtSubscreenRowY(1);
+        if (
+          MouseIn(
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_X,
+            y1 - 20,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+          )
+        ) {
+          const current = GARBLE_SOUND_PRESETS.indexOf(state.settings.ChatControlSetting.garbleSound);
+          const next = (current + 1 + GARBLE_SOUND_PRESETS.length) % GARBLE_SOUND_PRESETS.length;
+          state.settings.ChatControlSetting.garbleSound = GARBLE_SOUND_PRESETS[next];
+          saveSettings(state.settings);
+        }
+        return;
+      }
+
+      if (view === "OrgasmControl") {
+        const y0 = preferenceExtSubscreenRowY(0);
+        if (
+          MouseIn(
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_X,
+            y0 - 20,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+          )
+        ) {
+          const h = state.settings.OrgasmControlSetting.hornyLevel;
+          state.settings.OrgasmControlSetting.hornyLevel = (h + 1) % 11;
+          saveSettings(state.settings);
         }
       }
     },
