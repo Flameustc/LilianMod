@@ -1086,7 +1086,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
           const zone = args[2];
           const activity = args[1];
           const maxEffective = computeMaxForArousalTimer(C, activity, zone, args[4]);
-          const { applied, overflow } = computeIntendedArousalDelta(
+          const { overflow } = computeIntendedArousalDelta(
             oldTimer,
             incoming0,
             progressNow,
@@ -1094,10 +1094,6 @@ One of mods you are using is using an old version of SDK. It will work for now b
             maxEffective
           );
           desireValue += overflow;
-          const actionTriggersOrgasm = applied > 0 && progressNow < 100 && progressNow + applied >= 100;
-          if (actionTriggersOrgasm) {
-            pendingOrgasmGameDifficultyOverride = Math.max(6, Math.floor(desireValue));
-          }
         }
         if (org.sensitivityLevel > 0) {
           const base = Number.isFinite(args[3]) ? args[3] : 0;
@@ -1127,6 +1123,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
         allowRuinedBypassOnNextStart = false;
         return next(args);
       }
+      pendingOrgasmGameDifficultyOverride = Math.max(6, Math.floor(desireValue));
       applyDesireDecay();
       const threshold = org.forceOrgasmDesireThreshold;
       if (desireValue <= threshold) {
