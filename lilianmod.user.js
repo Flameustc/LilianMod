@@ -1,4 +1,4 @@
-// ==UserScript==\n// @name LilianMod\n// @namespace lilianmod\n// @version 0.1.0\n// @description LilianMod for BondageClub\n// @match https://www.bondageprojects.elementfx.com/R*\n// @grant none\n// ==/UserScript==
+// ==UserScript==\n// @name LilianMod\n// @namespace lilianmod\n// @version 0.3.0\n// @description LilianMod for BondageClub\n// @match https://www.bondageprojects.elementfx.com/R*\n// @grant none\n// ==/UserScript==
 "use strict";
 (() => {
   var __create = Object.create;
@@ -195,7 +195,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
 
   // src/settings.ts
   var PLUGIN_KEY = "LilianMod";
-  var SETTINGS_VERSION = "v0.2.0";
+  var SETTINGS_VERSION = "v0.3.0";
   var BACKUP_SUFFIX = "Backup";
   function getDefaultSettings() {
     return {
@@ -205,7 +205,8 @@ One of mods you are using is using an old version of SDK. It will work for now b
       },
       OrgasmControlSetting: {
         sensitivityLevel: 0,
-        forceOrgasmEnabled: false
+        forceOrgasmEnabled: false,
+        forceOrgasmDesireThreshold: 0
       }
     };
   }
@@ -220,6 +221,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
     const orgasm = raw.OrgasmControlSetting;
     let sensitivityLevel = fallback.OrgasmControlSetting.sensitivityLevel;
     let forceOrgasmEnabled = fallback.OrgasmControlSetting.forceOrgasmEnabled;
+    let forceOrgasmDesireThreshold = fallback.OrgasmControlSetting.forceOrgasmDesireThreshold;
     if (orgasm && typeof orgasm === "object") {
       const o = orgasm;
       const ov = o.sensitivityLevel;
@@ -230,6 +232,10 @@ One of mods you are using is using an old version of SDK. It will work for now b
       }
       if (typeof o.forceOrgasmEnabled === "boolean") {
         forceOrgasmEnabled = o.forceOrgasmEnabled;
+      }
+      const th = o.forceOrgasmDesireThreshold;
+      if (typeof th === "number" && Number.isFinite(th)) {
+        forceOrgasmDesireThreshold = Math.min(100, Math.max(0, Math.floor(th)));
       }
     }
     let customGarbleEnabled = fallback.ChatControlSetting.customGarbleEnabled;
@@ -250,7 +256,8 @@ One of mods you are using is using an old version of SDK. It will work for now b
       },
       OrgasmControlSetting: {
         sensitivityLevel,
-        forceOrgasmEnabled
+        forceOrgasmEnabled,
+        forceOrgasmDesireThreshold
       }
     };
   }
@@ -389,11 +396,13 @@ One of mods you are using is using an old version of SDK. It will work for now b
   var MAIN_ICON = "Icons/Preference.png";
   var PREF_INPUT_GARBLE = `${PLUGIN_KEY}-pref-garble-sound`;
   var PREF_INPUT_SENSITIVITY = `${PLUGIN_KEY}-pref-sensitivity-level`;
+  var PREF_INPUT_DESIRE_THRESHOLD = `${PLUGIN_KEY}-pref-desire-threshold`;
   var GARBLE_SOUND_MAX_LEN = 24;
   var TT_CUSTOM_GARBLE = "\u5F00\u542F\u540E\uFF0C\u4F7F\u7528\u4E0B\u65B9\u81EA\u5B9A\u4E49\u62DF\u58F0\u5B57\u53C2\u4E0E\u5835\u5634\u542B\u7CCA\uFF1B\u5173\u95ED\u5219\u8D70\u6E38\u620F\u539F\u7248\u903B\u8F91\u3002";
   var TT_GARBLE_SOUND = "\u542B\u7CCA\u65F6\u63D2\u5165\u7684\u62DF\u58F0\u5B57\uFF0C\u5728\u6846\u5185\u76F4\u63A5\u8F93\u5165\uFF08\u5EFA\u8BAE\u77ED\u5B57\u6216\u8BCD\uFF09\u3002\u82E5\u6E05\u7A7A\u540E\u5931\u7126/\u66F4\u6539\uFF0C\u5C06\u6062\u590D\u4E3A\u9ED8\u8BA4\u300C\u545C\u300D\u3002\u6700\u591A 24 \u5B57\u7B26\u3002";
   var TT_SENSITIVITY_LEVEL = "\u654F\u611F\u5EA6\u7B49\u7EA7\uFF08Sensitivity level\uFF090\u201310\u3002\u6570\u503C \xD710 \u4F1A\u5E76\u5165\u5404\u7C7B\u884C\u4E3A\u5BFC\u81F4\u7684 arousal \u5C01\u9876\uFF08\u6700\u5927 100\uFF09\uFF1B\u5C01\u9876\u81F3 100 \u65F6\u53EF\u89E6\u53D1\u9AD8\u6F6E\u3002";
-  var TT_FORCE_ORGASM = "\u5F00\u542F\u540E\uFF0C\u73A9\u5BB6\u9AD8\u6F6E\u51C6\u5907\u9636\u6BB5\u4F1A\u65E0\u89C6 Denial/Edged \u53CA BCX \u7684\u9AD8\u6F6E\u963B\u65AD\u89C4\u5219\uFF0C\u5F3A\u5236\u8FDB\u5165\u9AD8\u6F6E\u6D41\u7A0B\u3002";
+  var TT_FORCE_ORGASM = "\u5F00\u542F\u540E\uFF0C\u73A9\u5BB6\u9AD8\u6F6E\u51C6\u5907\u9636\u6BB5\u53EF\u65E0\u89C6 Denial/Edged \u53CA BCX \u7684\u9AD8\u6F6E\u963B\u65AD\u89C4\u5219\u5F3A\u5236\u8FDB\u5165\u9AD8\u6F6E\u6D41\u7A0B\uFF1B\u9700\u7D2F\u79EF\u6B32\u671B\u8D85\u8FC7\u4E0B\u65B9\u9608\u503C\u540E\u624D\u89E6\u53D1\u3002";
+  var TT_DESIRE_THRESHOLD = "\u5F3A\u5236\u9AD8\u6F6E\u6B32\u671B\u9608\u503C\uFF080\u2013100\uFF0C\u9ED8\u8BA4 0\uFF09\u3002\u884C\u4E3A\u4EA7\u751F\u7684\u6EA2\u51FA\u5FEB\u611F\u4F1A\u7D2F\u79EF\u4E3A\u6B32\u671B\u503C\uFF0C\u6BCF 1.9 \u79D2\u8870\u51CF 2 \u70B9\uFF1B\u4EC5\u5F53\u6B32\u671B\u5927\u4E8E\u6B64\u503C\u65F6\u624D\u89E6\u53D1\u5F3A\u5236\u9AD8\u6F6E\uFF0C\u5426\u5219\u8D70\u539F\u7248\u3002\u8D70 ruined \u7B49\u8DEF\u5F84\u65F6\u4F1A\u5C11\u91CF\u589E\u52A0\u6B32\u671B\u3002";
   function drawPreferenceTooltipBar(text) {
     const { X: x, Y: y, W: w, H: h } = PREFERENCE_EXT_TOOLTIP_BAR;
     const canvas = MainCanvas;
@@ -454,6 +463,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
   function removePreferenceExtensionInputs() {
     ElementRemove(PREF_INPUT_GARBLE);
     ElementRemove(PREF_INPUT_SENSITIVITY);
+    ElementRemove(PREF_INPUT_DESIRE_THRESHOLD);
   }
   function registerPreferencesExtension(state) {
     let view = "MainMenu";
@@ -486,28 +496,50 @@ One of mods you are using is using an old version of SDK. It will work for now b
         inp.addEventListener("change", commit);
         inp.addEventListener("blur", commit);
       } else {
-        const inp = ElementCreateInput(
+        const sensInp = ElementCreateInput(
           PREF_INPUT_SENSITIVITY,
           "number",
           String(state.settings.OrgasmControlSetting.sensitivityLevel),
           "2"
         );
-        inp.setAttribute("min", "0");
-        inp.setAttribute("max", "10");
-        inp.setAttribute("autocomplete", "off");
-        const commit = () => {
-          let n = parseInt(inp.value, 10);
+        sensInp.setAttribute("min", "0");
+        sensInp.setAttribute("max", "10");
+        sensInp.setAttribute("autocomplete", "off");
+        const commitSens = () => {
+          let n = parseInt(sensInp.value, 10);
           if (!Number.isFinite(n)) {
             n = state.settings.OrgasmControlSetting.sensitivityLevel;
           } else {
             n = Math.min(10, Math.max(0, Math.floor(n)));
           }
           state.settings.OrgasmControlSetting.sensitivityLevel = n;
-          inp.value = String(n);
+          sensInp.value = String(n);
           saveSettings(state.settings);
         };
-        inp.addEventListener("change", commit);
-        inp.addEventListener("blur", commit);
+        sensInp.addEventListener("change", commitSens);
+        sensInp.addEventListener("blur", commitSens);
+        const thrInp = ElementCreateInput(
+          PREF_INPUT_DESIRE_THRESHOLD,
+          "number",
+          String(state.settings.OrgasmControlSetting.forceOrgasmDesireThreshold),
+          "3"
+        );
+        thrInp.setAttribute("min", "0");
+        thrInp.setAttribute("max", "100");
+        thrInp.setAttribute("autocomplete", "off");
+        const commitThr = () => {
+          let n = parseInt(thrInp.value, 10);
+          if (!Number.isFinite(n)) {
+            n = state.settings.OrgasmControlSetting.forceOrgasmDesireThreshold;
+          } else {
+            n = Math.min(100, Math.max(0, Math.floor(n)));
+          }
+          state.settings.OrgasmControlSetting.forceOrgasmDesireThreshold = n;
+          thrInp.value = String(n);
+          saveSettings(state.settings);
+        };
+        thrInp.addEventListener("change", commitThr);
+        thrInp.addEventListener("blur", commitThr);
       }
     }
     function positionPreferenceExtensionInput(sub, row) {
@@ -522,9 +554,17 @@ One of mods you are using is using an old version of SDK. It will work for now b
           PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
           PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
         );
-      } else {
+      } else if (row === 1) {
         ElementPosition(
           PREF_INPUT_SENSITIVITY,
+          cx,
+          cy,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+        );
+      } else {
+        ElementPosition(
+          PREF_INPUT_DESIRE_THRESHOLD,
           cx,
           cy,
           PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
@@ -539,10 +579,16 @@ One of mods you are using is using an old version of SDK. It will work for now b
         const want = state.settings.ChatControlSetting.garbleSound;
         if (el.value !== want) el.value = want;
       } else {
-        const el = document.getElementById(PREF_INPUT_SENSITIVITY);
-        if (!el || document.activeElement === el) return;
-        const want = String(state.settings.OrgasmControlSetting.sensitivityLevel);
-        if (el.value !== want) el.value = want;
+        const sens = document.getElementById(PREF_INPUT_SENSITIVITY);
+        if (sens && document.activeElement !== sens) {
+          const wantS = String(state.settings.OrgasmControlSetting.sensitivityLevel);
+          if (sens.value !== wantS) sens.value = wantS;
+        }
+        const thr = document.getElementById(PREF_INPUT_DESIRE_THRESHOLD);
+        if (thr && document.activeElement !== thr) {
+          const wantT = String(state.settings.OrgasmControlSetting.forceOrgasmDesireThreshold);
+          if (thr.value !== wantT) thr.value = wantT;
+        }
       }
     }
     PreferenceRegisterExtensionSetting({
@@ -629,6 +675,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
         } else {
           ensurePreferenceExtensionInputs("OrgasmControl");
           positionPreferenceExtensionInput("OrgasmControl", 1);
+          positionPreferenceExtensionInput("OrgasmControl", 2);
           syncPreferenceInputsFromState("OrgasmControl");
           DrawText(
             `- LilianMod \u9AD8\u6F6E\u63A7\u5236 -`,
@@ -667,11 +714,24 @@ One of mods you are using is using an old version of SDK. It will work for now b
             hover1 ? "Red" : "Black",
             "Gray"
           );
+          const y2 = preferenceExtSubscreenRowY(2);
+          const hover2 = MouseIn(xL, y2 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+          DrawTextFit(
+            "\u5F3A\u5236\u9AD8\u6F6E\u6B32\u671B\u9608\u503C (0\u2013100)",
+            xL,
+            y2,
+            PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+            hover2 ? "Red" : "Black",
+            "Gray"
+          );
           if (hover0) {
             drawPreferenceTooltipBar(TT_FORCE_ORGASM);
           }
           if (hover1) {
             drawPreferenceTooltipBar(TT_SENSITIVITY_LEVEL);
+          }
+          if (hover2) {
+            drawPreferenceTooltipBar(TT_DESIRE_THRESHOLD);
           }
         }
         MainCanvas.textAlign = previousAlign;
@@ -825,29 +885,138 @@ One of mods you are using is using an old version of SDK. It will work for now b
     });
   }
 
-  // src/orgasm-control/hook.ts
+  // src/orgasm-control/sensitivity.ts
+  function computeMaxForArousalTimer(C, Activity, Zone, Asset) {
+    var _a;
+    let max = Activity == null || Activity.MaxProgress == null || Activity.MaxProgress > 100 ? 100 : Activity.MaxProgress;
+    if (max > 95 && Zone !== "ActivityOnOther" && !PreferenceGetZoneOrgasm(C, Zone)) {
+      max = 95;
+    }
+    if (max > 67 && Zone === "ActivityOnOther" && Activity != null) {
+      const pen = Asset;
+      if (["PenetrateSlow", "PenetrateFast"].includes(Activity.Name) && pen && ((_a = pen.Group) == null ? void 0 : _a.Name) === "Pussy" && pen.Name === "Penis") {
+        max = PreferenceGetZoneOrgasm(Player, "ItemVulva") ? 100 : 95;
+      } else {
+        max = Activity.MaxProgressSelf != null ? Activity.MaxProgressSelf : 67;
+      }
+    }
+    return max;
+  }
+  function clamp(n, lo, hi) {
+    if (n < lo) return lo;
+    if (n > hi) return hi;
+    return n;
+  }
+  function computeIntendedArousalDelta(oldTimer, incoming0, progressNow, sensitivityLevel, maxEffective) {
+    const baseClamped = clamp(Math.round(oldTimer / 2 + incoming0), -25, 25);
+    const intended = baseClamped + sensitivityLevel;
+    const boostedClamped = clamp(
+      Math.round(oldTimer / 2 + incoming0 + sensitivityLevel),
+      -25,
+      25
+    );
+    const allowed = Math.max(0, maxEffective - progressNow);
+    const applied = boostedClamped > 0 ? Math.min(boostedClamped, allowed) : boostedClamped;
+    const overflow = Math.max(0, intended - applied);
+    return { intended, applied, overflow };
+  }
+
+  // src/orgasm-control/ruinedIntercept.ts
+  var listeners = [];
   var installed2 = false;
+  var lastEvent = null;
+  function onRuinedOrgasmPath(cb) {
+    listeners.push(cb);
+    return () => {
+      const i = listeners.indexOf(cb);
+      if (i >= 0) listeners.splice(i, 1);
+    };
+  }
+  function notify(ev) {
+    lastEvent = ev;
+    for (const cb of listeners) {
+      try {
+        cb(ev);
+      } catch (e) {
+      }
+    }
+  }
+  function isLikelyRuinedPath(ruinedBefore, progressAfter, stageAfter, timerAfter, now) {
+    if (!ruinedBefore) return false;
+    const timerActive = timerAfter != null && typeof timerAfter === "number" && timerAfter > now;
+    if (stageAfter === 2 && timerActive) return false;
+    const progressInRuinRange = progressAfter >= 60 && progressAfter <= 92;
+    const timerCleared = timerAfter == null || timerAfter === 0 || !timerActive;
+    const stageIdle = stageAfter == null || stageAfter === 0;
+    return timerCleared && stageIdle && progressInRuinRange;
+  }
+  function registerRuinedOrgasmIntercept(mod, priority = 115) {
+    if (installed2) return;
+    installed2 = true;
+    mod.hookFunction("ActivityOrgasmStart", priority, (args, next) => {
+      const C = args[0];
+      const now = CurrentTime;
+      if (!C.IsPlayer()) {
+        return next(args);
+      }
+      const ruinedBefore = ActivityOrgasmRuined === true;
+      next(args);
+      const arousal = C.ArousalSettings;
+      const progressAfter = typeof arousal.Progress === "number" ? arousal.Progress : 0;
+      const stageAfter = arousal.OrgasmStage;
+      const timerAfter = arousal.OrgasmTimer;
+      if (isLikelyRuinedPath(ruinedBefore, progressAfter, stageAfter, timerAfter, now)) {
+        notify({
+          at: now,
+          character: C,
+          ruinedBefore,
+          progressAfter,
+          orgasmStageAfter: stageAfter,
+          orgasmTimerAfter: timerAfter
+        });
+      }
+    });
+  }
+
+  // src/orgasm-control/hook.ts
+  var installed3 = false;
   var lilianArousalBoostDepth = 0;
+  var DESIRE_DECAY_MS = 1900;
+  var DESIRE_DECAY_STEP = 2;
+  var DESIRE_RUINED_BONUS = 5;
+  var desireValue = 0;
+  var lastDesireDecayAt = null;
+  function getNow() {
+    return CurrentTime;
+  }
+  function applyDesireDecay() {
+    const now = getNow();
+    if (lastDesireDecayAt == null) {
+      lastDesireDecayAt = now;
+      return;
+    }
+    const elapsed = now - lastDesireDecayAt;
+    const steps = Math.floor(elapsed / DESIRE_DECAY_MS);
+    if (steps <= 0) return;
+    desireValue = Math.max(0, desireValue - steps * DESIRE_DECAY_STEP);
+    lastDesireDecayAt += steps * DESIRE_DECAY_MS;
+  }
   function forcePreparePlayerOrgasm(C) {
-    const g = globalThis;
     const arousal = C.ArousalSettings;
-    const now = typeof g.CurrentTime === "number" ? g.CurrentTime : Date.now();
+    const now = getNow();
     const activeTimer = typeof arousal.OrgasmTimer === "number" && arousal.OrgasmTimer > now;
     if (activeTimer) {
       return;
     }
-    g.ActivityOrgasmRuined = false;
+    ActivityOrgasmRuined = false;
     const timer = now + 5e3;
     arousal.OrgasmTimer = timer;
     arousal.OrgasmStage = 0;
-    g.ActivityOrgasmGameTimer = timer - now;
-    const currentCharacter = g.CurrentCharacter;
-    if (currentCharacter && currentCharacter.ID === C.ID && typeof g.DialogLeave === "function") {
-      g.DialogLeave();
+    ActivityOrgasmGameTimer = timer - now;
+    if (CurrentCharacter && CurrentCharacter.ID === C.ID) {
+      DialogLeave();
     }
-    if (typeof g.ActivityChatRoomArousalSync === "function") {
-      g.ActivityChatRoomArousalSync(C);
-    }
+    ActivityChatRoomArousalSync(C);
   }
   function applySensitivityCapToActivitySetArousalTimerArgs(args, sensitivityLevel) {
     const capBonus = sensitivityLevel * 10;
@@ -874,44 +1043,93 @@ One of mods you are using is using an old version of SDK. It will work for now b
     args[1] = clone;
   }
   function installOrgasmControlHooks(mod, getSettings) {
-    if (installed2) return;
-    installed2 = true;
+    if (installed3) return;
+    installed3 = true;
+    onRuinedOrgasmPath(() => {
+      if (!getSettings().OrgasmControlSetting.forceOrgasmEnabled) return;
+      applyDesireDecay();
+      desireValue += DESIRE_RUINED_BONUS;
+    });
+    registerRuinedOrgasmIntercept(mod, 115);
     mod.hookFunction("ActivitySetArousalTimer", 50, (args, next) => {
       const C = args[0];
-      const sensitivity = getSettings().OrgasmControlSetting.sensitivityLevel;
-      if (!C.IsPlayer() || sensitivity <= 0) {
+      if (!C.IsPlayer()) {
         return next(args);
       }
-      lilianArousalBoostDepth++;
+      const org = getSettings().OrgasmControlSetting;
+      if (!org.forceOrgasmEnabled) {
+        desireValue = 0;
+      }
+      if (org.sensitivityLevel <= 0 && !org.forceOrgasmEnabled) {
+        return next(args);
+      }
+      let depthInc = false;
+      if (org.sensitivityLevel > 0) {
+        applySensitivityCapToActivitySetArousalTimerArgs(args, org.sensitivityLevel);
+        lilianArousalBoostDepth++;
+        depthInc = true;
+      }
       try {
-        applySensitivityCapToActivitySetArousalTimerArgs(args, sensitivity);
+        if (org.forceOrgasmEnabled) {
+          applyDesireDecay();
+          const incoming0 = Number.isFinite(args[3]) ? args[3] : 0;
+          const arousal = C.ArousalSettings;
+          let oldTimer = arousal.ProgressTimer;
+          if (oldTimer == null || typeof oldTimer !== "number" || Number.isNaN(oldTimer)) {
+            oldTimer = 0;
+          }
+          const progressNow = arousal.Progress;
+          const zone = args[2];
+          const activity = args[1];
+          const maxEffective = computeMaxForArousalTimer(C, activity, zone, args[4]);
+          const { overflow } = computeIntendedArousalDelta(
+            oldTimer,
+            incoming0,
+            progressNow,
+            org.sensitivityLevel,
+            maxEffective
+          );
+          desireValue += overflow;
+        }
+        if (org.sensitivityLevel > 0) {
+          const base = Number.isFinite(args[3]) ? args[3] : 0;
+          args[3] = base + org.sensitivityLevel;
+        }
         return next(args);
       } finally {
-        lilianArousalBoostDepth--;
+        if (depthInc) {
+          lilianArousalBoostDepth--;
+        }
       }
     });
     mod.hookFunction("PreferenceGetZoneOrgasm", 50, (args, next) => {
-      var _a, _b;
       const v = next(args);
-      if (lilianArousalBoostDepth > 0 && ((_b = (_a = args[0]) == null ? void 0 : _a.IsPlayer) == null ? void 0 : _b.call(_a))) {
+      if (lilianArousalBoostDepth > 0 && args[0].IsPlayer()) {
         return true;
       }
       return v;
     });
     mod.hookFunction("ActivityOrgasmPrepare", 100, (args, next) => {
-      var _a;
       const C = args[0];
-      if (((_a = C == null ? void 0 : C.IsPlayer) == null ? void 0 : _a.call(C)) && getSettings().OrgasmControlSetting.forceOrgasmEnabled) {
-        forcePreparePlayerOrgasm(C);
-        return;
+      if (!C.IsPlayer()) {
+        return next(args);
       }
-      return next(args);
+      const org = getSettings().OrgasmControlSetting;
+      if (!org.forceOrgasmEnabled) {
+        return next(args);
+      }
+      applyDesireDecay();
+      const threshold = org.forceOrgasmDesireThreshold;
+      if (desireValue <= threshold) {
+        return next(args);
+      }
+      forcePreparePlayerOrgasm(C);
+      desireValue = 0;
     });
     mod.hookFunction("ActivityOrgasmStart", 100, (args, next) => {
-      var _a;
       const C = args[0];
-      if (((_a = C == null ? void 0 : C.IsPlayer) == null ? void 0 : _a.call(C)) && getSettings().OrgasmControlSetting.forceOrgasmEnabled) {
-        globalThis.ActivityOrgasmRuined = false;
+      if (C.IsPlayer() && getSettings().OrgasmControlSetting.forceOrgasmEnabled) {
+        ActivityOrgasmRuined = false;
       }
       return next(args);
     });
