@@ -201,7 +201,8 @@ One of mods you are using is using an old version of SDK. It will work for now b
     return {
       ChatControlSetting: {
         customGarbleEnabled: true,
-        garbleSound: "\u545C"
+        garbleSound: "\u545C",
+        actionMessageReplaceEnabled: false
       },
       OrgasmControlSetting: {
         sensitivityLevel: 0,
@@ -240,6 +241,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
     }
     let customGarbleEnabled = fallback.ChatControlSetting.customGarbleEnabled;
     let garbleSound = fallback.ChatControlSetting.garbleSound;
+    let actionMessageReplaceEnabled = fallback.ChatControlSetting.actionMessageReplaceEnabled;
     if (chatControl && typeof chatControl === "object") {
       const c = chatControl;
       if (typeof c.customGarbleEnabled === "boolean") {
@@ -248,11 +250,15 @@ One of mods you are using is using an old version of SDK. It will work for now b
       if (typeof c.garbleSound === "string" && c.garbleSound.trim().length > 0) {
         garbleSound = c.garbleSound;
       }
+      if (typeof c.actionMessageReplaceEnabled === "boolean") {
+        actionMessageReplaceEnabled = c.actionMessageReplaceEnabled;
+      }
     }
     return {
       ChatControlSetting: {
         customGarbleEnabled,
-        garbleSound
+        garbleSound,
+        actionMessageReplaceEnabled
       },
       OrgasmControlSetting: {
         sensitivityLevel,
@@ -400,6 +406,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
   var GARBLE_SOUND_MAX_LEN = 24;
   var TT_CUSTOM_GARBLE = "\u5F00\u542F\u540E\uFF0C\u4F7F\u7528\u4E0B\u65B9\u81EA\u5B9A\u4E49\u62DF\u58F0\u5B57\u53C2\u4E0E\u5835\u5634\u542B\u7CCA\uFF1B\u5173\u95ED\u5219\u8D70\u6E38\u620F\u539F\u7248\u903B\u8F91\u3002";
   var TT_GARBLE_SOUND = "\u542B\u7CCA\u65F6\u63D2\u5165\u7684\u62DF\u58F0\u5B57\uFF0C\u5728\u6846\u5185\u76F4\u63A5\u8F93\u5165\uFF08\u5EFA\u8BAE\u77ED\u5B57\u6216\u8BCD\uFF09\u3002\u82E5\u6E05\u7A7A\u540E\u5931\u7126/\u66F4\u6539\uFF0C\u5C06\u6062\u590D\u4E3A\u9ED8\u8BA4\u300C\u545C\u300D\u3002\u6700\u591A 24 \u5B57\u7B26\u3002";
+  var TT_ACTION_REPLACE = "\u5F00\u542F\u540E\uFF0C\u516C\u5F00\u804A\u5929\u4F1A\u6539\u4E3A\u53D1\u9001 Action \u7279\u6B8A\u6837\u5F0F\u6D88\u606F\uFF0C\u5B8C\u5168\u7ED5\u8FC7 BC \u539F\u7248\u3001\u5176\u4ED6\u6A21\u7EC4\u4E0E\u672C\u6A21\u5757\u81EA\u5B9A\u4E49\u7684\u6240\u6709\u5835\u5634\u542B\u7CCA\u3002";
   var TT_SENSITIVITY_LEVEL = "\u654F\u611F\u5EA6\u7B49\u7EA7\uFF08Sensitivity level\uFF090\u201310\u3002\u6570\u503C \xD710 \u4F1A\u5E76\u5165\u5404\u7C7B\u884C\u4E3A\u5BFC\u81F4\u7684 arousal \u5C01\u9876\uFF08\u6700\u5927 100\uFF09\uFF1B\u5C01\u9876\u81F3 100 \u65F6\u53EF\u89E6\u53D1\u9AD8\u6F6E\u3002";
   var TT_FORCE_ORGASM = "\u5F00\u542F\u540E\uFF0C\u73A9\u5BB6\u9AD8\u6F6E\u51C6\u5907\u9636\u6BB5\u53EF\u65E0\u89C6 Denial/Edged \u53CA BCX \u7684\u9AD8\u6F6E\u963B\u65AD\u89C4\u5219\u5F3A\u5236\u8FDB\u5165\u9AD8\u6F6E\u6D41\u7A0B\uFF1B\u9700\u7D2F\u79EF\u6B32\u671B\u8D85\u8FC7\u4E0B\u65B9\u9608\u503C\u540E\u624D\u89E6\u53D1\u3002";
   var TT_DESIRE_THRESHOLD = "\u5F3A\u5236\u9AD8\u6F6E\u6B32\u671B\u9608\u503C\uFF080\u2013100\uFF0C\u9ED8\u8BA4 0\uFF09\u3002\u884C\u4E3A\u4EA7\u751F\u7684\u6EA2\u51FA\u5FEB\u611F\u4F1A\u7D2F\u79EF\u4E3A\u6B32\u671B\u503C\uFF0C\u6BCF 1.9 \u79D2\u8870\u51CF 2 \u70B9\uFF1B\u4EC5\u5F53\u6B32\u671B\u5927\u4E8E\u6B64\u503C\u65F6\u624D\u89E6\u53D1\u5F3A\u5236\u9AD8\u6F6E\uFF0C\u5426\u5219\u8D70\u539F\u7248\u3002\u8D70 ruined \u7B49\u8DEF\u5F84\u65F6\u4F1A\u5C11\u91CF\u589E\u52A0\u6B32\u671B\u3002";
@@ -627,7 +634,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
         MainCanvas.textAlign = "left";
         if (view === "ChatControl") {
           ensurePreferenceExtensionInputs("ChatControl");
-          positionPreferenceExtensionInput("ChatControl", 1);
+          positionPreferenceExtensionInput("ChatControl", 2);
           syncPreferenceInputsFromState("ChatControl");
           DrawText(
             `- LilianMod ChatControl -`,
@@ -658,18 +665,40 @@ One of mods you are using is using an old version of SDK. It will work for now b
           );
           const y1 = preferenceExtSubscreenRowY(1);
           const hover1 = MouseIn(xL, y1 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+          DrawCheckbox(
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_LEFT,
+            y1 - 32,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
+            "",
+            state.settings.ChatControlSetting.actionMessageReplaceEnabled,
+            false
+          );
           DrawTextFit(
-            "Garble sound",
+            "Public chat -> action message style",
             xL,
             y1,
             PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
             hover1 ? "Red" : "Black",
             "Gray"
           );
+          const y2 = preferenceExtSubscreenRowY(2);
+          const hover2 = MouseIn(xL, y2 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+          DrawTextFit(
+            "Garble sound",
+            xL,
+            y2,
+            PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+            hover2 ? "Red" : "Black",
+            "Gray"
+          );
           if (hover0) {
             drawPreferenceTooltipBar(TT_CUSTOM_GARBLE);
           }
           if (hover1) {
+            drawPreferenceTooltipBar(TT_ACTION_REPLACE);
+          }
+          if (hover2) {
             drawPreferenceTooltipBar(TT_GARBLE_SOUND);
           }
         } else {
@@ -762,7 +791,6 @@ One of mods you are using is using an old version of SDK. It will work for now b
           return;
         }
         if (view === "ChatControl") {
-          const xL = PREFERENCE_EXT_SUBSCREEN.START_X;
           const y0 = preferenceExtSubscreenRowY(0);
           if (MouseIn(
             PREFERENCE_EXT_SUBSCREEN.CHECKBOX_LEFT,
@@ -771,6 +799,16 @@ One of mods you are using is using an old version of SDK. It will work for now b
             PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE
           )) {
             state.settings.ChatControlSetting.customGarbleEnabled = !state.settings.ChatControlSetting.customGarbleEnabled;
+            saveSettings(state.settings);
+          }
+          const y1 = preferenceExtSubscreenRowY(1);
+          if (MouseIn(
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_LEFT,
+            y1 - 32,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE
+          )) {
+            state.settings.ChatControlSetting.actionMessageReplaceEnabled = !state.settings.ChatControlSetting.actionMessageReplaceEnabled;
             saveSettings(state.settings);
           }
         } else if (view === "OrgasmControl") {
@@ -853,9 +891,39 @@ One of mods you are using is using an old version of SDK. It will work for now b
     const cleaned = sound.trim();
     return cleaned.length > 0 ? [cleaned] : ["\u545C"];
   }
+  var CUSTOM_ACTION_DIALOG_KEY = "LILIAN_PLAYER_CUSTOM_DIALOG";
+  function sendAsCustomActionMessage(msg) {
+    const dictionary = new DictionaryBuilder().sourceCharacter(Player).build();
+    const replyId = ChatRoomMessageGetReplyId();
+    if (replyId) {
+      dictionary.push({ ReplyId: replyId, Tag: "ReplyId" });
+      ChatRoomMessageReplyStop();
+    }
+    ServerSend("ChatRoomChat", {
+      Content: CUSTOM_ACTION_DIALOG_KEY,
+      Type: "Action",
+      Dictionary: [
+        { Tag: `MISSING TEXT IN "Interface.csv": ${CUSTOM_ACTION_DIALOG_KEY}`, Text: msg },
+        ...dictionary
+      ]
+    });
+  }
   function installChatGarbleHook(mod, getSettings) {
     if (installed) return;
     installed = true;
+    mod.hookFunction("ChatRoomSendChatMessage", 100, (args, next) => {
+      const [msg] = args;
+      const settings = getSettings();
+      if (!settings.ChatControlSetting.actionMessageReplaceEnabled) {
+        return next(args);
+      }
+      if (ChatRoomOwnerPresenceRule("BlockTalk", null)) return false;
+      if (!ChatRoomOwnerForbiddenWordCheck(msg)) return false;
+      sendAsCustomActionMessage(msg);
+      const firstOOCRange = SpeechGetOOCRanges(msg).shift();
+      if (!firstOOCRange || firstOOCRange.start > 0) ChatRoomStimulationMessage("Talk");
+      return true;
+    });
     mod.hookFunction("ChatRoomGenerateChatRoomChatMessage", 10, (args, next) => {
       const [type, originalInput, replyId] = args;
       let msg = originalInput;
