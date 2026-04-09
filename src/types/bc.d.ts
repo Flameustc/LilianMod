@@ -122,8 +122,11 @@ declare global {
     Progress: number,
     Asset?: unknown
   ): void;
+  function ActivityOrgasmGameGenerate(Progress: number): void;
   function ActivityOrgasmPrepare(C: BCCharacter, Bypass?: boolean): void;
   function ActivityOrgasmStart(C: BCCharacter): void;
+  function ActivityOrgasmStop(C: BCCharacter, Progress: number): void;
+  var ActivityOrgasmGameDifficulty: number;
   var ActivityOrgasmRuined: boolean;
   var ActivityOrgasmGameTimer: number;
 } 

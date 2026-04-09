@@ -15,6 +15,10 @@ const DESIRE_RUINED_BONUS = 5;
 
 let desireValue = 0;
 let lastDesireDecayAt: number | null = null;
+/** Set by Prepare hook when this orgasm attempt is allowed to bypass ruined. Consumed by Start hook once. */
+let allowRuinedBypassOnNextStart = false;
+/** Set when an action pushes arousal to orgasm; consumed by ActivityOrgasmGameGenerate(0). */
+let pendingOrgasmGameDifficultyOverride: number | null = null;
 
 function getNow(): number {
   return CurrentTime;
@@ -105,6 +109,8 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
     const org = getSettings().OrgasmControlSetting;
     if (!org.forceOrgasmEnabled) {
       desireValue = 0;
+      allowRuinedBypassOnNextStart = false;
+      pendingOrgasmGameDifficultyOverride = null;
     }
 
     if (org.sensitivityLevel <= 0 && !org.forceOrgasmEnabled) {
@@ -131,7 +137,7 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
         const zone = args[2];
         const activity = args[1];
         const maxEffective = computeMaxForArousalTimer(C, activity, zone, args[4]);
-        const { overflow } = computeIntendedArousalDelta(
+        const { applied, overflow } = computeIntendedArousalDelta(
           oldTimer,
           incoming0,
           progressNow,
@@ -139,6 +145,10 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
           maxEffective
         );
         desireValue += overflow;
+        const actionTriggersOrgasm = applied > 0 && progressNow < 100 && (progressNow + applied) >= 100;
+        if (actionTriggersOrgasm) {
+          pendingOrgasmGameDifficultyOverride = Math.max(6, Math.floor(desireValue));
+        }
       }
 
       if (org.sensitivityLevel > 0) {
@@ -170,24 +180,58 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
 
     const org = getSettings().OrgasmControlSetting;
     if (!org.forceOrgasmEnabled) {
+      allowRuinedBypassOnNextStart = false;
       return next(args);
     }
 
     applyDesireDecay();
     const threshold = org.forceOrgasmDesireThreshold;
     if (desireValue <= threshold) {
+      allowRuinedBypassOnNextStart = false;
       return next(args);
     }
 
+    allowRuinedBypassOnNextStart = true;
     forcePreparePlayerOrgasm(C);
-    desireValue = 0;
   });
 
   mod.hookFunction("ActivityOrgasmStart", 100, (args, next) => {
     const C = args[0];
-    if (C.IsPlayer() && getSettings().OrgasmControlSetting.forceOrgasmEnabled) {
+    if (C.IsPlayer() && getSettings().OrgasmControlSetting.forceOrgasmEnabled && allowRuinedBypassOnNextStart) {
       ActivityOrgasmRuined = false;
+      allowRuinedBypassOnNextStart = false;
     }
     return next(args);
+  });
+
+  mod.hookFunction("ActivityOrgasmGameGenerate", 100, (args, next) => {
+    const ret = next(args);
+    if (!getSettings().OrgasmControlSetting.forceOrgasmEnabled) {
+      pendingOrgasmGameDifficultyOverride = null;
+      return ret;
+    }
+    if (args[0] === 0 && pendingOrgasmGameDifficultyOverride != null) {
+      ActivityOrgasmGameDifficulty = pendingOrgasmGameDifficultyOverride;
+      pendingOrgasmGameDifficultyOverride = null;
+    }
+    return ret;
+  });
+
+  mod.hookFunction("ActivityOrgasmStop", 100, (args, next) => {
+    const C = args[0];
+    const stopProgress = args[1];
+    const ret = next(args);
+    if (
+      C.IsPlayer() &&
+      getSettings().OrgasmControlSetting.forceOrgasmEnabled &&
+      typeof stopProgress === "number" &&
+      stopProgress <= 20
+    ) {
+      // Clear desire only after a real orgasm finishes.
+      desireValue = 0;
+      allowRuinedBypassOnNextStart = false;
+      pendingOrgasmGameDifficultyOverride = null;
+    }
+    return ret;
   });
 }
