@@ -1149,6 +1149,13 @@ One of mods you are using is using an old version of SDK. It will work for now b
       }
       if (args[0] === 0 && pendingOrgasmGameDifficultyOverride != null) {
         ActivityOrgasmGameDifficulty = pendingOrgasmGameDifficultyOverride;
+        const g = globalThis;
+        const textGet = g.TextGet;
+        if (typeof textGet === "function") {
+          const progress = typeof g.ActivityOrgasmGameProgress === "number" ? g.ActivityOrgasmGameProgress : 0;
+          const remain = Math.max(0, Math.ceil(ActivityOrgasmGameDifficulty - progress));
+          g.ActivityOrgasmResistLabel = `${textGet("OrgasmResist")} (${remain.toString()})`;
+        }
         pendingOrgasmGameDifficultyOverride = null;
       }
       return ret;
