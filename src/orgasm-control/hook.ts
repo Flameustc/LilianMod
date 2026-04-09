@@ -211,6 +211,17 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
     }
     if (args[0] === 0 && pendingOrgasmGameDifficultyOverride != null) {
       ActivityOrgasmGameDifficulty = pendingOrgasmGameDifficultyOverride;
+      // Vanilla already built the first label with old difficulty in this same call.
+      // Recompute it immediately so the first rendered button shows correct remaining clicks.
+      const g = globalThis as Record<string, unknown>;
+      const textGet = g.TextGet;
+      if (typeof textGet === "function") {
+        const progress = typeof g.ActivityOrgasmGameProgress === "number"
+          ? (g.ActivityOrgasmGameProgress as number)
+          : 0;
+        const remain = Math.max(0, Math.ceil(ActivityOrgasmGameDifficulty - progress));
+        g.ActivityOrgasmResistLabel = `${(textGet as (k: string) => string)("OrgasmResist")} (${remain.toString()})`;
+      }
       pendingOrgasmGameDifficultyOverride = null;
     }
     return ret;
