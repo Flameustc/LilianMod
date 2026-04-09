@@ -1,6 +1,6 @@
 export const PLUGIN_KEY = "LilianMod";
 /** 仅写入存盘元数据（如新于旧备份比对），不参与「能否加载」判断。 */
-export const SETTINGS_VERSION = "v0.2.0";
+export const SETTINGS_VERSION = "v0.3.0";
 const BACKUP_SUFFIX = "Backup";
 
 export interface ChatControlSetting {
@@ -12,6 +12,8 @@ export interface ChatControlSetting {
 export interface OrgasmControlSetting {
   sensitivityLevel: number;
   forceOrgasmEnabled: boolean;
+  /** 仅当累积欲望值大于此数（0–100）时才触发强制高潮；默认 0 表示不额外门槛。 */
+  forceOrgasmDesireThreshold: number;
 }
 
 export interface LilianSettings {
@@ -28,6 +30,7 @@ export function getDefaultSettings(): LilianSettings {
     OrgasmControlSetting: {
       sensitivityLevel: 0,
       forceOrgasmEnabled: false,
+      forceOrgasmDesireThreshold: 0,
     },
   };
 }
@@ -51,6 +54,7 @@ export function sanitizeSettings(input: unknown): LilianSettings {
 
   let sensitivityLevel = fallback.OrgasmControlSetting.sensitivityLevel;
   let forceOrgasmEnabled = fallback.OrgasmControlSetting.forceOrgasmEnabled;
+  let forceOrgasmDesireThreshold = fallback.OrgasmControlSetting.forceOrgasmDesireThreshold;
   if (orgasm && typeof orgasm === "object") {
     const o = orgasm as Record<string, unknown>;
     const ov = o.sensitivityLevel;
@@ -61,6 +65,10 @@ export function sanitizeSettings(input: unknown): LilianSettings {
     }
     if (typeof o.forceOrgasmEnabled === "boolean") {
       forceOrgasmEnabled = o.forceOrgasmEnabled;
+    }
+    const th = o.forceOrgasmDesireThreshold;
+    if (typeof th === "number" && Number.isFinite(th)) {
+      forceOrgasmDesireThreshold = Math.min(100, Math.max(0, Math.floor(th)));
     }
   }
 
@@ -84,6 +92,7 @@ export function sanitizeSettings(input: unknown): LilianSettings {
     OrgasmControlSetting: {
       sensitivityLevel,
       forceOrgasmEnabled,
+      forceOrgasmDesireThreshold,
     },
   };
 }

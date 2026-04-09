@@ -15,6 +15,7 @@ type ExtensionView = "MainMenu" | "ChatControl" | "OrgasmControl";
 const MAIN_ICON = "Icons/Preference.png";
 const PREF_INPUT_GARBLE = `${PLUGIN_KEY}-pref-garble-sound`;
 const PREF_INPUT_SENSITIVITY = `${PLUGIN_KEY}-pref-sensitivity-level`;
+const PREF_INPUT_DESIRE_THRESHOLD = `${PLUGIN_KEY}-pref-desire-threshold`;
 const GARBLE_SOUND_MAX_LEN = 24;
 
 /** 悬停配置项名称时于底部条展示（行为对齐 LSCG `Tooltip` + `drawTooltip`） */
@@ -25,7 +26,9 @@ const TT_GARBLE_SOUND =
 const TT_SENSITIVITY_LEVEL =
   "敏感度等级（Sensitivity level）0–10。数值 ×10 会并入各类行为导致的 arousal 封顶（最大 100）；封顶至 100 时可触发高潮。";
 const TT_FORCE_ORGASM =
-  "开启后，玩家高潮准备阶段会无视 Denial/Edged 及 BCX 的高潮阻断规则，强制进入高潮流程。";
+  "开启后，玩家高潮准备阶段可无视 Denial/Edged 及 BCX 的高潮阻断规则强制进入高潮流程；需累积欲望超过下方阈值后才触发。";
+const TT_DESIRE_THRESHOLD =
+  "强制高潮欲望阈值（0–100，默认 0）。行为产生的溢出快感会累积为欲望值，每 1.9 秒衰减 2 点；仅当欲望大于此值时才触发强制高潮，否则走原版。走 ruined 等路径时会少量增加欲望。";
 
 function drawPreferenceTooltipBar(text: string): void {
   const { X: x, Y: y, W: w, H: h } = PREFERENCE_EXT_TOOLTIP_BAR;
@@ -91,6 +94,7 @@ function clickMainMenuEntry(px: number, py: number): boolean {
 function removePreferenceExtensionInputs(): void {
   ElementRemove(PREF_INPUT_GARBLE);
   ElementRemove(PREF_INPUT_SENSITIVITY);
+  ElementRemove(PREF_INPUT_DESIRE_THRESHOLD);
 }
 
 export function registerPreferencesExtension(state: { settings: LilianSettings }): void {
@@ -127,28 +131,51 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
       inp.addEventListener("change", commit);
       inp.addEventListener("blur", commit);
     } else {
-      const inp = ElementCreateInput(
+      const sensInp = ElementCreateInput(
         PREF_INPUT_SENSITIVITY,
         "number",
         String(state.settings.OrgasmControlSetting.sensitivityLevel),
         "2"
       );
-      inp.setAttribute("min", "0");
-      inp.setAttribute("max", "10");
-      inp.setAttribute("autocomplete", "off");
-      const commit = (): void => {
-        let n = parseInt(inp.value, 10);
+      sensInp.setAttribute("min", "0");
+      sensInp.setAttribute("max", "10");
+      sensInp.setAttribute("autocomplete", "off");
+      const commitSens = (): void => {
+        let n = parseInt(sensInp.value, 10);
         if (!Number.isFinite(n)) {
           n = state.settings.OrgasmControlSetting.sensitivityLevel;
         } else {
           n = Math.min(10, Math.max(0, Math.floor(n)));
         }
         state.settings.OrgasmControlSetting.sensitivityLevel = n;
-        inp.value = String(n);
+        sensInp.value = String(n);
         saveSettings(state.settings);
       };
-      inp.addEventListener("change", commit);
-      inp.addEventListener("blur", commit);
+      sensInp.addEventListener("change", commitSens);
+      sensInp.addEventListener("blur", commitSens);
+
+      const thrInp = ElementCreateInput(
+        PREF_INPUT_DESIRE_THRESHOLD,
+        "number",
+        String(state.settings.OrgasmControlSetting.forceOrgasmDesireThreshold),
+        "3"
+      );
+      thrInp.setAttribute("min", "0");
+      thrInp.setAttribute("max", "100");
+      thrInp.setAttribute("autocomplete", "off");
+      const commitThr = (): void => {
+        let n = parseInt(thrInp.value, 10);
+        if (!Number.isFinite(n)) {
+          n = state.settings.OrgasmControlSetting.forceOrgasmDesireThreshold;
+        } else {
+          n = Math.min(100, Math.max(0, Math.floor(n)));
+        }
+        state.settings.OrgasmControlSetting.forceOrgasmDesireThreshold = n;
+        thrInp.value = String(n);
+        saveSettings(state.settings);
+      };
+      thrInp.addEventListener("change", commitThr);
+      thrInp.addEventListener("blur", commitThr);
     }
   }
 
@@ -164,9 +191,17 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
         PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
         PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
       );
-    } else {
+    } else if (row === 1) {
       ElementPosition(
         PREF_INPUT_SENSITIVITY,
+        cx,
+        cy,
+        PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+        PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+      );
+    } else {
+      ElementPosition(
+        PREF_INPUT_DESIRE_THRESHOLD,
         cx,
         cy,
         PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
@@ -182,10 +217,16 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
       const want = state.settings.ChatControlSetting.garbleSound;
       if (el.value !== want) el.value = want;
     } else {
-      const el = document.getElementById(PREF_INPUT_SENSITIVITY) as HTMLInputElement | null;
-      if (!el || document.activeElement === el) return;
-      const want = String(state.settings.OrgasmControlSetting.sensitivityLevel);
-      if (el.value !== want) el.value = want;
+      const sens = document.getElementById(PREF_INPUT_SENSITIVITY) as HTMLInputElement | null;
+      if (sens && document.activeElement !== sens) {
+        const wantS = String(state.settings.OrgasmControlSetting.sensitivityLevel);
+        if (sens.value !== wantS) sens.value = wantS;
+      }
+      const thr = document.getElementById(PREF_INPUT_DESIRE_THRESHOLD) as HTMLInputElement | null;
+      if (thr && document.activeElement !== thr) {
+        const wantT = String(state.settings.OrgasmControlSetting.forceOrgasmDesireThreshold);
+        if (thr.value !== wantT) thr.value = wantT;
+      }
     }
   }
 
@@ -280,6 +321,7 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
       } else {
         ensurePreferenceExtensionInputs("OrgasmControl");
         positionPreferenceExtensionInput("OrgasmControl", 1);
+        positionPreferenceExtensionInput("OrgasmControl", 2);
         syncPreferenceInputsFromState("OrgasmControl");
 
         DrawText(
@@ -321,11 +363,25 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
           hover1 ? "Red" : "Black",
           "Gray"
         );
+
+        const y2 = preferenceExtSubscreenRowY(2);
+        const hover2 = MouseIn(xL, y2 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+        DrawTextFit(
+          "强制高潮欲望阈值 (0–100)",
+          xL,
+          y2,
+          PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+          hover2 ? "Red" : "Black",
+          "Gray"
+        );
         if (hover0) {
           drawPreferenceTooltipBar(TT_FORCE_ORGASM);
         }
         if (hover1) {
           drawPreferenceTooltipBar(TT_SENSITIVITY_LEVEL);
+        }
+        if (hover2) {
+          drawPreferenceTooltipBar(TT_DESIRE_THRESHOLD);
         }
       }
 

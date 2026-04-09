@@ -1,40 +1,64 @@
 import type { ModSDKModAPI } from "bondage-club-mod-sdk";
 import type { LilianSettings } from "../settings";
 import type { BCActivity, BCCharacter } from "../types/bc";
+import { computeIntendedArousalDelta, computeMaxForArousalTimer } from "./sensitivity";
+import { onRuinedOrgasmPath, registerRuinedOrgasmIntercept } from "./ruinedIntercept";
 
 let installed = false;
 
 /** >0 while `ActivitySetArousalTimer` runs with sensitivity cap applied (for `PreferenceGetZoneOrgasm` incremental bypass). */
 let lilianArousalBoostDepth = 0;
 
-function forcePreparePlayerOrgasm(C: BCCharacter): void {
-  const g = globalThis as Record<string, unknown>;
-  const arousal = C.ArousalSettings as BCCharacter["ArousalSettings"] & { OrgasmTimer?: number; OrgasmStage?: number };
-  const now = typeof g.CurrentTime === "number" ? (g.CurrentTime as number) : Date.now();
-  const activeTimer = typeof arousal.OrgasmTimer === "number" && arousal.OrgasmTimer > now;
-  if (activeTimer) {
-    // Already in orgasm countdown/game; avoid reinitializing timer and resync spam.
+const DESIRE_DECAY_MS = 1900;
+const DESIRE_DECAY_STEP = 2;
+const DESIRE_RUINED_BONUS = 5;
+
+let desireValue = 0;
+let lastDesireDecayAt: number | null = null;
+
+function getNow(): number {
+  return CurrentTime;
+}
+
+function applyDesireDecay(): void {
+  const now = getNow();
+  if (lastDesireDecayAt == null) {
+    lastDesireDecayAt = now;
     return;
   }
-  g.ActivityOrgasmRuined = false;
+  const elapsed = now - lastDesireDecayAt;
+  const steps = Math.floor(elapsed / DESIRE_DECAY_MS);
+  if (steps <= 0) return;
+  desireValue = Math.max(0, desireValue - steps * DESIRE_DECAY_STEP);
+  lastDesireDecayAt += steps * DESIRE_DECAY_MS;
+}
+
+function forcePreparePlayerOrgasm(C: BCCharacter): void {
+  const arousal = C.ArousalSettings as BCCharacter["ArousalSettings"] & { OrgasmTimer?: number; OrgasmStage?: number };
+  const now = getNow();
+  const activeTimer = typeof arousal.OrgasmTimer === "number" && arousal.OrgasmTimer > now;
+  if (activeTimer) {
+    return;
+  }
+  ActivityOrgasmRuined = false;
   const timer = now + 5000;
   arousal.OrgasmTimer = timer;
   arousal.OrgasmStage = 0;
-  g.ActivityOrgasmGameTimer = timer - now;
+  ActivityOrgasmGameTimer = timer - now;
 
-  const currentCharacter = g.CurrentCharacter as { ID?: number } | null | undefined;
-  if (currentCharacter && (currentCharacter.ID === C.ID) && typeof g.DialogLeave === "function") {
-    (g.DialogLeave as () => void)();
+  if (CurrentCharacter && CurrentCharacter.ID === C.ID) {
+    DialogLeave();
   }
-  if (typeof g.ActivityChatRoomArousalSync === "function") {
-    (g.ActivityChatRoomArousalSync as (character: BCCharacter) => void)(C);
-  }
+  ActivityChatRoomArousalSync(C);
 }
 
-function applySensitivityCapToActivitySetArousalTimerArgs(args: unknown[], sensitivityLevel: number): void {
+function applySensitivityCapToActivitySetArousalTimerArgs(
+  args: Parameters<typeof ActivitySetArousalTimer>,
+  sensitivityLevel: number
+): void {
   const capBonus = sensitivityLevel * 10;
-  const Activity = args[1] as BCActivity | null;
-  const Zone = args[2] as string;
+  const Activity = args[1];
+  const Zone = args[2];
 
   if (Activity == null) {
     const syn: BCActivity = {
@@ -64,46 +88,105 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
   if (installed) return;
   installed = true;
 
+  onRuinedOrgasmPath(() => {
+    if (!getSettings().OrgasmControlSetting.forceOrgasmEnabled) return;
+    applyDesireDecay();
+    desireValue += DESIRE_RUINED_BONUS;
+  });
+
+  registerRuinedOrgasmIntercept(mod, 115);
+
   mod.hookFunction("ActivitySetArousalTimer", 50, (args, next) => {
-    const C = args[0] as BCCharacter;
-    const sensitivity = getSettings().OrgasmControlSetting.sensitivityLevel;
-    if (!C.IsPlayer() || sensitivity <= 0) {
+    const C = args[0];
+    if (!C.IsPlayer()) {
       return next(args);
     }
-    lilianArousalBoostDepth++;
+
+    const org = getSettings().OrgasmControlSetting;
+    if (!org.forceOrgasmEnabled) {
+      desireValue = 0;
+    }
+
+    if (org.sensitivityLevel <= 0 && !org.forceOrgasmEnabled) {
+      return next(args);
+    }
+
+    let depthInc = false;
+    if (org.sensitivityLevel > 0) {
+      applySensitivityCapToActivitySetArousalTimerArgs(args, org.sensitivityLevel);
+      lilianArousalBoostDepth++;
+      depthInc = true;
+    }
+
     try {
-      applySensitivityCapToActivitySetArousalTimerArgs(args, sensitivity);
+      if (org.forceOrgasmEnabled) {
+        applyDesireDecay();
+        const incoming0 = Number.isFinite(args[3]) ? args[3] : 0;
+        const arousal = C.ArousalSettings;
+        let oldTimer = arousal.ProgressTimer;
+        if (oldTimer == null || typeof oldTimer !== "number" || Number.isNaN(oldTimer)) {
+          oldTimer = 0;
+        }
+        const progressNow = arousal.Progress;
+        const zone = args[2];
+        const activity = args[1];
+        const maxEffective = computeMaxForArousalTimer(C, activity, zone, args[4]);
+        const { overflow } = computeIntendedArousalDelta(
+          oldTimer,
+          incoming0,
+          progressNow,
+          org.sensitivityLevel,
+          maxEffective
+        );
+        desireValue += overflow;
+      }
+
+      if (org.sensitivityLevel > 0) {
+        const base = Number.isFinite(args[3]) ? args[3] : 0;
+        args[3] = base + org.sensitivityLevel;
+      }
+
       return next(args);
     } finally {
-      lilianArousalBoostDepth--;
+      if (depthInc) {
+        lilianArousalBoostDepth--;
+      }
     }
   });
 
   mod.hookFunction("PreferenceGetZoneOrgasm", 50, (args, next) => {
     const v = next(args);
-    if (lilianArousalBoostDepth > 0 && (args[0] as BCCharacter)?.IsPlayer?.()) {
+    if (lilianArousalBoostDepth > 0 && args[0].IsPlayer()) {
       return true;
     }
     return v;
   });
 
-  (mod as unknown as {
-    hookFunction: (name: string, priority: number, hook: (args: unknown[], next: (args: unknown[]) => unknown) => unknown) => void;
-  }).hookFunction("ActivityOrgasmPrepare", 100, (args, next) => {
-    const C = args[0] as BCCharacter;
-    if (C?.IsPlayer?.() && getSettings().OrgasmControlSetting.forceOrgasmEnabled) {
-      forcePreparePlayerOrgasm(C);
-      return;
+  mod.hookFunction("ActivityOrgasmPrepare", 100, (args, next) => {
+    const C = args[0];
+    if (!C.IsPlayer()) {
+      return next(args);
     }
-    return next(args);
+
+    const org = getSettings().OrgasmControlSetting;
+    if (!org.forceOrgasmEnabled) {
+      return next(args);
+    }
+
+    applyDesireDecay();
+    const threshold = org.forceOrgasmDesireThreshold;
+    if (desireValue <= threshold) {
+      return next(args);
+    }
+
+    forcePreparePlayerOrgasm(C);
+    desireValue = 0;
   });
 
-  (mod as unknown as {
-    hookFunction: (name: string, priority: number, hook: (args: unknown[], next: (args: unknown[]) => unknown) => unknown) => void;
-  }).hookFunction("ActivityOrgasmStart", 100, (args, next) => {
-    const C = args[0] as BCCharacter;
-    if (C?.IsPlayer?.() && getSettings().OrgasmControlSetting.forceOrgasmEnabled) {
-      (globalThis as Record<string, unknown>).ActivityOrgasmRuined = false;
+  mod.hookFunction("ActivityOrgasmStart", 100, (args, next) => {
+    const C = args[0];
+    if (C.IsPlayer() && getSettings().OrgasmControlSetting.forceOrgasmEnabled) {
+      ActivityOrgasmRuined = false;
     }
     return next(args);
   });

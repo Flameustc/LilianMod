@@ -114,6 +114,16 @@ declare global {
 
   function PreferenceGetZoneOrgasm(character: BCCharacter, zone: string): boolean;
   function ActivityChatRoomArousalSync(character: BCCharacter): void;
+  /** Declared for `bondage-club-mod-sdk` `hookFunction` typing (`GetDotedPathType<typeof globalThis, ...>`). */
+  function ActivitySetArousalTimer(
+    C: BCCharacter,
+    Activity: BCActivity | null,
+    Zone: string,
+    Progress: number,
+    Asset?: unknown
+  ): void;
+  function ActivityOrgasmPrepare(C: BCCharacter, Bypass?: boolean): void;
+  function ActivityOrgasmStart(C: BCCharacter): void;
   var ActivityOrgasmRuined: boolean;
   var ActivityOrgasmGameTimer: number;
 } 
