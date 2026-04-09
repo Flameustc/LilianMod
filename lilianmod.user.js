@@ -202,7 +202,8 @@ One of mods you are using is using an old version of SDK. It will work for now b
       ChatControlSetting: {
         customGarbleEnabled: true,
         garbleSound: "\u545C",
-        actionMessageReplaceEnabled: false
+        actionMessageReplaceEnabled: false,
+        actionMessageTemplate: "$msg"
       },
       OrgasmControlSetting: {
         sensitivityLevel: 0,
@@ -242,6 +243,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
     let customGarbleEnabled = fallback.ChatControlSetting.customGarbleEnabled;
     let garbleSound = fallback.ChatControlSetting.garbleSound;
     let actionMessageReplaceEnabled = fallback.ChatControlSetting.actionMessageReplaceEnabled;
+    let actionMessageTemplate = fallback.ChatControlSetting.actionMessageTemplate;
     if (chatControl && typeof chatControl === "object") {
       const c = chatControl;
       if (typeof c.customGarbleEnabled === "boolean") {
@@ -253,12 +255,16 @@ One of mods you are using is using an old version of SDK. It will work for now b
       if (typeof c.actionMessageReplaceEnabled === "boolean") {
         actionMessageReplaceEnabled = c.actionMessageReplaceEnabled;
       }
+      if (typeof c.actionMessageTemplate === "string" && c.actionMessageTemplate.includes("$msg")) {
+        actionMessageTemplate = c.actionMessageTemplate;
+      }
     }
     return {
       ChatControlSetting: {
         customGarbleEnabled,
         garbleSound,
-        actionMessageReplaceEnabled
+        actionMessageReplaceEnabled,
+        actionMessageTemplate
       },
       OrgasmControlSetting: {
         sensitivityLevel,
@@ -401,15 +407,18 @@ One of mods you are using is using an old version of SDK. It will work for now b
   // src/preferencesExtension.ts
   var MAIN_ICON = "Icons/Preference.png";
   var PREF_INPUT_GARBLE = `${PLUGIN_KEY}-pref-garble-sound`;
+  var PREF_INPUT_ACTION_TEMPLATE = `${PLUGIN_KEY}-pref-action-template`;
   var PREF_INPUT_SENSITIVITY = `${PLUGIN_KEY}-pref-sensitivity-level`;
   var PREF_INPUT_DESIRE_THRESHOLD = `${PLUGIN_KEY}-pref-desire-threshold`;
   var GARBLE_SOUND_MAX_LEN = 24;
+  var ACTION_TEMPLATE_MAX_LEN = 256;
   var TT_CUSTOM_GARBLE = "\u5F00\u542F\u540E\uFF0C\u4F7F\u7528\u4E0B\u65B9\u81EA\u5B9A\u4E49\u62DF\u58F0\u5B57\u53C2\u4E0E\u5835\u5634\u542B\u7CCA\uFF1B\u5173\u95ED\u5219\u8D70\u6E38\u620F\u539F\u7248\u903B\u8F91\u3002";
   var TT_GARBLE_SOUND = "\u542B\u7CCA\u65F6\u63D2\u5165\u7684\u62DF\u58F0\u5B57\uFF0C\u5728\u6846\u5185\u76F4\u63A5\u8F93\u5165\uFF08\u5EFA\u8BAE\u77ED\u5B57\u6216\u8BCD\uFF09\u3002\u82E5\u6E05\u7A7A\u540E\u5931\u7126/\u66F4\u6539\uFF0C\u5C06\u6062\u590D\u4E3A\u9ED8\u8BA4\u300C\u545C\u300D\u3002\u6700\u591A 24 \u5B57\u7B26\u3002";
-  var TT_ACTION_REPLACE = "\u5F00\u542F\u540E\uFF0C\u516C\u5F00\u804A\u5929\u4F1A\u6539\u4E3A\u53D1\u9001 Action \u7279\u6B8A\u6837\u5F0F\u6D88\u606F\uFF0C\u5B8C\u5168\u7ED5\u8FC7 BC \u539F\u7248\u3001\u5176\u4ED6\u6A21\u7EC4\u4E0E\u672C\u6A21\u5757\u81EA\u5B9A\u4E49\u7684\u6240\u6709\u5835\u5634\u542B\u7CCA\u3002";
-  var TT_SENSITIVITY_LEVEL = "\u654F\u611F\u5EA6\u7B49\u7EA7\uFF08Sensitivity level\uFF090\u201310\u3002\u6570\u503C \xD710 \u4F1A\u5E76\u5165\u5404\u7C7B\u884C\u4E3A\u5BFC\u81F4\u7684 arousal \u5C01\u9876\uFF08\u6700\u5927 100\uFF09\uFF1B\u5C01\u9876\u81F3 100 \u65F6\u53EF\u89E6\u53D1\u9AD8\u6F6E\u3002";
-  var TT_FORCE_ORGASM = "\u5F00\u542F\u540E\uFF0C\u73A9\u5BB6\u9AD8\u6F6E\u51C6\u5907\u9636\u6BB5\u53EF\u65E0\u89C6 Denial/Edged \u53CA BCX \u7684\u9AD8\u6F6E\u963B\u65AD\u89C4\u5219\u5F3A\u5236\u8FDB\u5165\u9AD8\u6F6E\u6D41\u7A0B\uFF1B\u9700\u7D2F\u79EF\u6B32\u671B\u8D85\u8FC7\u4E0B\u65B9\u9608\u503C\u540E\u624D\u89E6\u53D1\u3002";
-  var TT_DESIRE_THRESHOLD = "\u5F3A\u5236\u9AD8\u6F6E\u6B32\u671B\u9608\u503C\uFF080\u2013100\uFF0C\u9ED8\u8BA4 0\uFF09\u3002\u884C\u4E3A\u4EA7\u751F\u7684\u6EA2\u51FA\u5FEB\u611F\u4F1A\u7D2F\u79EF\u4E3A\u6B32\u671B\u503C\uFF0C\u6BCF 1.9 \u79D2\u8870\u51CF 2 \u70B9\uFF1B\u4EC5\u5F53\u6B32\u671B\u5927\u4E8E\u6B64\u503C\u65F6\u624D\u89E6\u53D1\u5F3A\u5236\u9AD8\u6F6E\uFF0C\u5426\u5219\u8D70\u539F\u7248\u3002\u8D70 ruined \u7B49\u8DEF\u5F84\u65F6\u4F1A\u5C11\u91CF\u589E\u52A0\u6B32\u671B\u3002";
+  var TT_ACTION_REPLACE = "\u5F00\u542F\u540E\uFF0C\u516C\u5F00\u804A\u5929\u4F1A\u6539\u4E3A\u53D1\u9001\u7279\u6B8A\u6837\u5F0F\u52A8\u4F5C\u6D88\u606F\uFF0C\u5B8C\u5168\u7ED5\u8FC7 BC \u539F\u7248\u3001\u5176\u4ED6\u6A21\u7EC4\u4E0E\u672C\u6A21\u5757\u81EA\u5B9A\u4E49\u7684\u6240\u6709\u5835\u5634\u542B\u7CCA\u3002";
+  var TT_ACTION_TEMPLATE = "\u52A8\u4F5C\u6D88\u606F\u6A21\u677F\u3002\u53D1\u9001\u65F6\u4F1A\u628A\u5176\u4E2D\u6240\u6709 $msg \u66FF\u6362\u4E3A\u539F\u59CB\u8F93\u5165\u5185\u5BB9\u3002\u6A21\u677F\u5FC5\u987B\u5305\u542B $msg\uFF1B\u4E0D\u5408\u6CD5\u65F6\u81EA\u52A8\u6062\u590D\u9ED8\u8BA4\u503C\u3002";
+  var TT_SENSITIVITY_LEVEL = "\u654F\u611F\u5EA6\u7B49\u7EA7 0\u201310\u3002\u6570\u503C \xD710 \u4F1A\u5E76\u5165\u5404\u7C7B\u884C\u4E3A\u5BFC\u81F4\u7684\u5524\u8D77\u503C\u5C01\u9876\uFF08\u6700\u5927 100\uFF09\uFF1B\u5C01\u9876\u81F3 100 \u65F6\u53EF\u89E6\u53D1\u9AD8\u6F6E\u3002";
+  var TT_FORCE_ORGASM = "\u5F00\u542F\u540E\uFF0C\u73A9\u5BB6\u9AD8\u6F6E\u51C6\u5907\u9636\u6BB5\u53EF\u65E0\u89C6\u9AD8\u6F6E\u963B\u65AD\u89C4\u5219\u5F3A\u5236\u8FDB\u5165\u9AD8\u6F6E\u6D41\u7A0B\uFF1B\u9700\u7D2F\u79EF\u6B32\u671B\u8D85\u8FC7\u4E0B\u65B9\u9608\u503C\u540E\u624D\u89E6\u53D1\u3002";
+  var TT_DESIRE_THRESHOLD = "\u5F3A\u5236\u9AD8\u6F6E\u6B32\u671B\u9608\u503C\uFF080\u2013100\uFF0C\u9ED8\u8BA4 0\uFF09\u3002\u884C\u4E3A\u4EA7\u751F\u7684\u6EA2\u51FA\u5FEB\u611F\u4F1A\u7D2F\u79EF\u4E3A\u6B32\u671B\u503C\uFF0C\u6BCF 1.9 \u79D2\u8870\u51CF 2 \u70B9\uFF1B\u4EC5\u5F53\u6B32\u671B\u5927\u4E8E\u6B64\u503C\u65F6\u624D\u89E6\u53D1\u5F3A\u5236\u9AD8\u6F6E\uFF0C\u5426\u5219\u8D70\u539F\u7248\u3002\u8D70\u53D7\u632B\u9AD8\u6F6E\u7B49\u8DEF\u5F84\u65F6\u4F1A\u5C11\u91CF\u589E\u52A0\u6B32\u671B\u3002";
   function drawPreferenceTooltipBar(text) {
     const { X: x, Y: y, W: w, H: h } = PREFERENCE_EXT_TOOLTIP_BAR;
     const canvas = MainCanvas;
@@ -429,7 +438,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
       "",
       "White",
       "Icons/Exit.png",
-      "Main Menu"
+      "\u8FD4\u56DE\u4E3B\u83DC\u5355"
     );
     DrawButton(
       PREFERENCE_EXT_HELP.x,
@@ -469,6 +478,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
   }
   function removePreferenceExtensionInputs() {
     ElementRemove(PREF_INPUT_GARBLE);
+    ElementRemove(PREF_INPUT_ACTION_TEMPLATE);
     ElementRemove(PREF_INPUT_SENSITIVITY);
     ElementRemove(PREF_INPUT_DESIRE_THRESHOLD);
   }
@@ -480,15 +490,15 @@ One of mods you are using is using an old version of SDK. It will work for now b
       removePreferenceExtensionInputs();
       inputsMountedView = sub;
       if (sub === "ChatControl") {
-        const inp = ElementCreateInput(
+        const garbleInp = ElementCreateInput(
           PREF_INPUT_GARBLE,
           "text",
           state.settings.ChatControlSetting.garbleSound,
           String(GARBLE_SOUND_MAX_LEN)
         );
-        inp.setAttribute("autocomplete", "off");
-        const commit = () => {
-          let v = inp.value.trim();
+        garbleInp.setAttribute("autocomplete", "off");
+        const commitGarble = () => {
+          let v = garbleInp.value.trim();
           if (!v) v = getDefaultSettings().ChatControlSetting.garbleSound;
           const chars = [...v];
           if (chars.length > GARBLE_SOUND_MAX_LEN) {
@@ -497,11 +507,36 @@ One of mods you are using is using an old version of SDK. It will work for now b
             v = chars.join("");
           }
           state.settings.ChatControlSetting.garbleSound = v;
-          inp.value = v;
+          garbleInp.value = v;
           saveSettings(state.settings);
         };
-        inp.addEventListener("change", commit);
-        inp.addEventListener("blur", commit);
+        garbleInp.addEventListener("change", commitGarble);
+        garbleInp.addEventListener("blur", commitGarble);
+        const templateInp = ElementCreateInput(
+          PREF_INPUT_ACTION_TEMPLATE,
+          "text",
+          state.settings.ChatControlSetting.actionMessageTemplate,
+          String(ACTION_TEMPLATE_MAX_LEN)
+        );
+        templateInp.setAttribute("autocomplete", "off");
+        const commitTemplate = () => {
+          const fallback = getDefaultSettings().ChatControlSetting.actionMessageTemplate;
+          let v = templateInp.value;
+          const chars = [...v];
+          if (chars.length > ACTION_TEMPLATE_MAX_LEN) {
+            v = chars.slice(0, ACTION_TEMPLATE_MAX_LEN).join("");
+          } else {
+            v = chars.join("");
+          }
+          if (!v.includes("$msg")) {
+            v = fallback;
+          }
+          state.settings.ChatControlSetting.actionMessageTemplate = v;
+          templateInp.value = v;
+          saveSettings(state.settings);
+        };
+        templateInp.addEventListener("change", commitTemplate);
+        templateInp.addEventListener("blur", commitTemplate);
       } else {
         const sensInp = ElementCreateInput(
           PREF_INPUT_SENSITIVITY,
@@ -554,13 +589,23 @@ One of mods you are using is using an old version of SDK. It will work for now b
       const cx = PREFERENCE_EXT_SUBSCREEN.CONTROL_CENTER_X;
       const cy = y - 20 + PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H / 2;
       if (sub === "ChatControl") {
-        ElementPosition(
-          PREF_INPUT_GARBLE,
-          cx,
-          cy,
-          PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
-          PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
-        );
+        if (row === 2) {
+          ElementPosition(
+            PREF_INPUT_GARBLE,
+            cx,
+            cy,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+          );
+        } else {
+          ElementPosition(
+            PREF_INPUT_ACTION_TEMPLATE,
+            cx,
+            cy,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+            PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+          );
+        }
       } else if (row === 1) {
         ElementPosition(
           PREF_INPUT_SENSITIVITY,
@@ -581,10 +626,16 @@ One of mods you are using is using an old version of SDK. It will work for now b
     }
     function syncPreferenceInputsFromState(sub) {
       if (sub === "ChatControl") {
-        const el = document.getElementById(PREF_INPUT_GARBLE);
-        if (!el || document.activeElement === el) return;
-        const want = state.settings.ChatControlSetting.garbleSound;
-        if (el.value !== want) el.value = want;
+        const garbleEl = document.getElementById(PREF_INPUT_GARBLE);
+        if (garbleEl && document.activeElement !== garbleEl) {
+          const want = state.settings.ChatControlSetting.garbleSound;
+          if (garbleEl.value !== want) garbleEl.value = want;
+        }
+        const templateEl = document.getElementById(PREF_INPUT_ACTION_TEMPLATE);
+        if (templateEl && document.activeElement !== templateEl) {
+          const want = state.settings.ChatControlSetting.actionMessageTemplate;
+          if (templateEl.value !== want) templateEl.value = want;
+        }
       } else {
         const sens = document.getElementById(PREF_INPUT_SENSITIVITY);
         if (sens && document.activeElement !== sens) {
@@ -625,7 +676,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
             "Black",
             "#D7F6E9"
           );
-          drawMainMenuEntry(0, 0, MAIN_ICON, "ChatControl");
+          drawMainMenuEntry(0, 0, MAIN_ICON, "\u804A\u5929\u63A7\u5236");
           drawMainMenuEntry(0, 1, MAIN_ICON, "\u9AD8\u6F6E\u63A7\u5236");
           MainCanvas.textAlign = previousAlign;
           drawExtensionExitAndHelp();
@@ -635,9 +686,10 @@ One of mods you are using is using an old version of SDK. It will work for now b
         if (view === "ChatControl") {
           ensurePreferenceExtensionInputs("ChatControl");
           positionPreferenceExtensionInput("ChatControl", 2);
+          positionPreferenceExtensionInput("ChatControl", 3);
           syncPreferenceInputsFromState("ChatControl");
           DrawText(
-            `- LilianMod ChatControl -`,
+            `- LilianMod \u804A\u5929\u63A7\u5236 -`,
             PREFERENCE_EXT_SUBSCREEN.START_X,
             PREFERENCE_EXT_SUBSCREEN.TITLE_Y,
             "Black",
@@ -656,7 +708,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
             false
           );
           DrawTextFit(
-            "Custom gag garble",
+            "\u81EA\u5B9A\u4E49\u5835\u5634\u542B\u7CCA",
             xL,
             y0,
             PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
@@ -675,7 +727,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
             false
           );
           DrawTextFit(
-            "Public chat -> action message style",
+            "\u516C\u5F00\u804A\u5929\u6539\u4E3A\u52A8\u4F5C\u6D88\u606F\u6837\u5F0F",
             xL,
             y1,
             PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
@@ -685,11 +737,21 @@ One of mods you are using is using an old version of SDK. It will work for now b
           const y2 = preferenceExtSubscreenRowY(2);
           const hover2 = MouseIn(xL, y2 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
           DrawTextFit(
-            "Garble sound",
+            "\u542B\u7CCA\u62DF\u58F0\u5B57",
             xL,
             y2,
             PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
             hover2 ? "Red" : "Black",
+            "Gray"
+          );
+          const y3 = preferenceExtSubscreenRowY(3);
+          const hover3 = MouseIn(xL, y3 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+          DrawTextFit(
+            "\u52A8\u4F5C\u6D88\u606F\u6A21\u677F",
+            xL,
+            y3,
+            PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+            hover3 ? "Red" : "Black",
             "Gray"
           );
           if (hover0) {
@@ -700,6 +762,9 @@ One of mods you are using is using an old version of SDK. It will work for now b
           }
           if (hover2) {
             drawPreferenceTooltipBar(TT_GARBLE_SOUND);
+          }
+          if (hover3) {
+            drawPreferenceTooltipBar(TT_ACTION_TEMPLATE);
           }
         } else {
           ensurePreferenceExtensionInputs("OrgasmControl");
@@ -726,7 +791,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
             false
           );
           DrawTextFit(
-            "\u5F3A\u5236\u9AD8\u6F6E (Force orgasm)",
+            "\u5F3A\u5236\u9AD8\u6F6E",
             xL,
             y0,
             PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
@@ -736,7 +801,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
           const y1 = preferenceExtSubscreenRowY(1);
           const hover1 = MouseIn(xL, y1 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
           DrawTextFit(
-            "\u654F\u611F\u5EA6\u7B49\u7EA7 (Sensitivity 0\u201310)",
+            "\u654F\u611F\u5EA6\u7B49\u7EA7\uFF080\u201310\uFF09",
             xL,
             y1,
             PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
@@ -892,7 +957,11 @@ One of mods you are using is using an old version of SDK. It will work for now b
     return cleaned.length > 0 ? [cleaned] : ["\u545C"];
   }
   var CUSTOM_ACTION_DIALOG_KEY = "LILIAN_PLAYER_CUSTOM_DIALOG";
-  function sendAsCustomActionMessage(msg) {
+  function applyActionMessageTemplate(template, msg) {
+    return template.split("$msg").join(msg);
+  }
+  function sendAsCustomActionMessage(msg, template) {
+    const contentText = applyActionMessageTemplate(template, msg);
     const dictionary = new DictionaryBuilder().sourceCharacter(Player).build();
     const replyId = ChatRoomMessageGetReplyId();
     if (replyId) {
@@ -903,7 +972,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
       Content: CUSTOM_ACTION_DIALOG_KEY,
       Type: "Action",
       Dictionary: [
-        { Tag: `MISSING TEXT IN "Interface.csv": ${CUSTOM_ACTION_DIALOG_KEY}`, Text: msg },
+        { Tag: `MISSING TEXT IN "Interface.csv": ${CUSTOM_ACTION_DIALOG_KEY}`, Text: contentText },
         ...dictionary
       ]
     });
@@ -919,7 +988,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
       }
       if (ChatRoomOwnerPresenceRule("BlockTalk", null)) return false;
       if (!ChatRoomOwnerForbiddenWordCheck(msg)) return false;
-      sendAsCustomActionMessage(msg);
+      sendAsCustomActionMessage(msg, settings.ChatControlSetting.actionMessageTemplate);
       const firstOOCRange = SpeechGetOOCRanges(msg).shift();
       if (!firstOOCRange || firstOOCRange.start > 0) ChatRoomStimulationMessage("Talk");
       return true;
