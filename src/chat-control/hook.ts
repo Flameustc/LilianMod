@@ -11,7 +11,12 @@ function getGarbleSound(sound: string): string[] {
 
 const CUSTOM_ACTION_DIALOG_KEY = "LILIAN_PLAYER_CUSTOM_DIALOG";
 
-function sendAsCustomActionMessage(msg: string): void {
+function applyActionMessageTemplate(template: string, msg: string): string {
+  return template.split("$msg").join(msg);
+}
+
+function sendAsCustomActionMessage(msg: string, template: string): void {
+  const contentText = applyActionMessageTemplate(template, msg);
   const dictionary = new DictionaryBuilder()
     .sourceCharacter(Player)
     .build();
@@ -25,7 +30,7 @@ function sendAsCustomActionMessage(msg: string): void {
     Content: CUSTOM_ACTION_DIALOG_KEY,
     Type: "Action",
     Dictionary: [
-      { Tag: `MISSING TEXT IN "Interface.csv": ${CUSTOM_ACTION_DIALOG_KEY}`, Text: msg },
+      { Tag: `MISSING TEXT IN "Interface.csv": ${CUSTOM_ACTION_DIALOG_KEY}`, Text: contentText },
       ...dictionary,
     ],
   });
@@ -45,7 +50,7 @@ export function installChatGarbleHook(mod: ModSDKModAPI, getSettings: () => Lili
     // Keep vanilla rule checks so blocked talk / forbidden words still work.
     if (ChatRoomOwnerPresenceRule("BlockTalk", null)) return false;
     if (!ChatRoomOwnerForbiddenWordCheck(msg)) return false;
-    sendAsCustomActionMessage(msg);
+    sendAsCustomActionMessage(msg, settings.ChatControlSetting.actionMessageTemplate);
 
     const firstOOCRange = SpeechGetOOCRanges(msg).shift();
     if (!firstOOCRange || firstOOCRange.start > 0) ChatRoomStimulationMessage("Talk");

@@ -14,9 +14,11 @@ type ExtensionView = "MainMenu" | "ChatControl" | "OrgasmControl";
 
 const MAIN_ICON = "Icons/Preference.png";
 const PREF_INPUT_GARBLE = `${PLUGIN_KEY}-pref-garble-sound`;
+const PREF_INPUT_ACTION_TEMPLATE = `${PLUGIN_KEY}-pref-action-template`;
 const PREF_INPUT_SENSITIVITY = `${PLUGIN_KEY}-pref-sensitivity-level`;
 const PREF_INPUT_DESIRE_THRESHOLD = `${PLUGIN_KEY}-pref-desire-threshold`;
 const GARBLE_SOUND_MAX_LEN = 24;
+const ACTION_TEMPLATE_MAX_LEN = 256;
 
 /** 悬停配置项名称时于底部条展示（行为对齐 LSCG `Tooltip` + `drawTooltip`） */
 const TT_CUSTOM_GARBLE =
@@ -24,13 +26,15 @@ const TT_CUSTOM_GARBLE =
 const TT_GARBLE_SOUND =
   "含糊时插入的拟声字，在框内直接输入（建议短字或词）。若清空后失焦/更改，将恢复为默认「呜」。最多 24 字符。";
 const TT_ACTION_REPLACE =
-  "开启后，公开聊天会改为发送 Action 特殊样式消息，完全绕过 BC 原版、其他模组与本模块自定义的所有堵嘴含糊。";
+  "开启后，公开聊天会改为发送特殊样式动作消息，完全绕过 BC 原版、其他模组与本模块自定义的所有堵嘴含糊。";
+const TT_ACTION_TEMPLATE =
+  "动作消息模板。发送时会把其中所有 $msg 替换为原始输入内容。模板必须包含 $msg；不合法时自动恢复默认值。";
 const TT_SENSITIVITY_LEVEL =
-  "敏感度等级（Sensitivity level）0–10。数值 ×10 会并入各类行为导致的 arousal 封顶（最大 100）；封顶至 100 时可触发高潮。";
+  "敏感度等级 0–10。数值 ×10 会并入各类行为导致的唤起值封顶（最大 100）；封顶至 100 时可触发高潮。";
 const TT_FORCE_ORGASM =
-  "开启后，玩家高潮准备阶段可无视 Denial/Edged 及 BCX 的高潮阻断规则强制进入高潮流程；需累积欲望超过下方阈值后才触发。";
+  "开启后，玩家高潮准备阶段可无视高潮阻断规则强制进入高潮流程；需累积欲望超过下方阈值后才触发。";
 const TT_DESIRE_THRESHOLD =
-  "强制高潮欲望阈值（0–100，默认 0）。行为产生的溢出快感会累积为欲望值，每 1.9 秒衰减 2 点；仅当欲望大于此值时才触发强制高潮，否则走原版。走 ruined 等路径时会少量增加欲望。";
+  "强制高潮欲望阈值（0–100，默认 0）。行为产生的溢出快感会累积为欲望值，每 1.9 秒衰减 2 点；仅当欲望大于此值时才触发强制高潮，否则走原版。走受挫高潮等路径时会少量增加欲望。";
 
 function drawPreferenceTooltipBar(text: string): void {
   const { X: x, Y: y, W: w, H: h } = PREFERENCE_EXT_TOOLTIP_BAR;
@@ -52,7 +56,7 @@ function drawExtensionExitAndHelp(): void {
     "",
     "White",
     "Icons/Exit.png",
-    "Main Menu"
+    "返回主菜单"
   );
   DrawButton(
     PREFERENCE_EXT_HELP.x,
@@ -95,6 +99,7 @@ function clickMainMenuEntry(px: number, py: number): boolean {
 
 function removePreferenceExtensionInputs(): void {
   ElementRemove(PREF_INPUT_GARBLE);
+  ElementRemove(PREF_INPUT_ACTION_TEMPLATE);
   ElementRemove(PREF_INPUT_SENSITIVITY);
   ElementRemove(PREF_INPUT_DESIRE_THRESHOLD);
 }
@@ -110,15 +115,15 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
     inputsMountedView = sub;
 
     if (sub === "ChatControl") {
-      const inp = ElementCreateInput(
+      const garbleInp = ElementCreateInput(
         PREF_INPUT_GARBLE,
         "text",
         state.settings.ChatControlSetting.garbleSound,
         String(GARBLE_SOUND_MAX_LEN)
       );
-      inp.setAttribute("autocomplete", "off");
-      const commit = (): void => {
-        let v = inp.value.trim();
+      garbleInp.setAttribute("autocomplete", "off");
+      const commitGarble = (): void => {
+        let v = garbleInp.value.trim();
         if (!v) v = getDefaultSettings().ChatControlSetting.garbleSound;
         const chars = [...v];
         if (chars.length > GARBLE_SOUND_MAX_LEN) {
@@ -127,11 +132,37 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
           v = chars.join("");
         }
         state.settings.ChatControlSetting.garbleSound = v;
-        inp.value = v;
+        garbleInp.value = v;
         saveSettings(state.settings);
       };
-      inp.addEventListener("change", commit);
-      inp.addEventListener("blur", commit);
+      garbleInp.addEventListener("change", commitGarble);
+      garbleInp.addEventListener("blur", commitGarble);
+
+      const templateInp = ElementCreateInput(
+        PREF_INPUT_ACTION_TEMPLATE,
+        "text",
+        state.settings.ChatControlSetting.actionMessageTemplate,
+        String(ACTION_TEMPLATE_MAX_LEN)
+      );
+      templateInp.setAttribute("autocomplete", "off");
+      const commitTemplate = (): void => {
+        const fallback = getDefaultSettings().ChatControlSetting.actionMessageTemplate;
+        let v = templateInp.value;
+        const chars = [...v];
+        if (chars.length > ACTION_TEMPLATE_MAX_LEN) {
+          v = chars.slice(0, ACTION_TEMPLATE_MAX_LEN).join("");
+        } else {
+          v = chars.join("");
+        }
+        if (!v.includes("$msg")) {
+          v = fallback;
+        }
+        state.settings.ChatControlSetting.actionMessageTemplate = v;
+        templateInp.value = v;
+        saveSettings(state.settings);
+      };
+      templateInp.addEventListener("change", commitTemplate);
+      templateInp.addEventListener("blur", commitTemplate);
     } else {
       const sensInp = ElementCreateInput(
         PREF_INPUT_SENSITIVITY,
@@ -186,13 +217,23 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
     const cx = PREFERENCE_EXT_SUBSCREEN.CONTROL_CENTER_X;
     const cy = y - 20 + PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H / 2;
     if (sub === "ChatControl") {
-      ElementPosition(
-        PREF_INPUT_GARBLE,
-        cx,
-        cy,
-        PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
-        PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
-      );
+      if (row === 2) {
+        ElementPosition(
+          PREF_INPUT_GARBLE,
+          cx,
+          cy,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+        );
+      } else {
+        ElementPosition(
+          PREF_INPUT_ACTION_TEMPLATE,
+          cx,
+          cy,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+          PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+        );
+      }
     } else if (row === 1) {
       ElementPosition(
         PREF_INPUT_SENSITIVITY,
@@ -214,10 +255,16 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
 
   function syncPreferenceInputsFromState(sub: "ChatControl" | "OrgasmControl"): void {
     if (sub === "ChatControl") {
-      const el = document.getElementById(PREF_INPUT_GARBLE) as HTMLInputElement | null;
-      if (!el || document.activeElement === el) return;
-      const want = state.settings.ChatControlSetting.garbleSound;
-      if (el.value !== want) el.value = want;
+      const garbleEl = document.getElementById(PREF_INPUT_GARBLE) as HTMLInputElement | null;
+      if (garbleEl && document.activeElement !== garbleEl) {
+        const want = state.settings.ChatControlSetting.garbleSound;
+        if (garbleEl.value !== want) garbleEl.value = want;
+      }
+      const templateEl = document.getElementById(PREF_INPUT_ACTION_TEMPLATE) as HTMLInputElement | null;
+      if (templateEl && document.activeElement !== templateEl) {
+        const want = state.settings.ChatControlSetting.actionMessageTemplate;
+        if (templateEl.value !== want) templateEl.value = want;
+      }
     } else {
       const sens = document.getElementById(PREF_INPUT_SENSITIVITY) as HTMLInputElement | null;
       if (sens && document.activeElement !== sens) {
@@ -260,7 +307,7 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
           "Black",
           "#D7F6E9"
         );
-        drawMainMenuEntry(0, 0, MAIN_ICON, "ChatControl");
+        drawMainMenuEntry(0, 0, MAIN_ICON, "聊天控制");
         drawMainMenuEntry(0, 1, MAIN_ICON, "高潮控制");
         MainCanvas.textAlign = previousAlign;
         drawExtensionExitAndHelp();
@@ -272,10 +319,11 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
       if (view === "ChatControl") {
         ensurePreferenceExtensionInputs("ChatControl");
         positionPreferenceExtensionInput("ChatControl", 2);
+        positionPreferenceExtensionInput("ChatControl", 3);
         syncPreferenceInputsFromState("ChatControl");
 
         DrawText(
-          `- LilianMod ChatControl -`,
+          `- LilianMod 聊天控制 -`,
           PREFERENCE_EXT_SUBSCREEN.START_X,
           PREFERENCE_EXT_SUBSCREEN.TITLE_Y,
           "Black",
@@ -295,7 +343,7 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
           false
         );
         DrawTextFit(
-          "Custom gag garble",
+          "自定义堵嘴含糊",
           xL,
           y0,
           PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
@@ -315,7 +363,7 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
           false
         );
         DrawTextFit(
-          "Public chat -> action message style",
+          "公开聊天改为动作消息样式",
           xL,
           y1,
           PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
@@ -326,11 +374,22 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
         const y2 = preferenceExtSubscreenRowY(2);
         const hover2 = MouseIn(xL, y2 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
         DrawTextFit(
-          "Garble sound",
+          "含糊拟声字",
           xL,
           y2,
           PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
           hover2 ? "Red" : "Black",
+          "Gray"
+        );
+
+        const y3 = preferenceExtSubscreenRowY(3);
+        const hover3 = MouseIn(xL, y3 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+        DrawTextFit(
+          "动作消息模板",
+          xL,
+          y3,
+          PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+          hover3 ? "Red" : "Black",
           "Gray"
         );
 
@@ -342,6 +401,9 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
         }
         if (hover2) {
           drawPreferenceTooltipBar(TT_GARBLE_SOUND);
+        }
+        if (hover3) {
+          drawPreferenceTooltipBar(TT_ACTION_TEMPLATE);
         }
       } else {
         ensurePreferenceExtensionInputs("OrgasmControl");
@@ -370,7 +432,7 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
           false
         );
         DrawTextFit(
-          "强制高潮 (Force orgasm)",
+          "强制高潮",
           xL,
           y0,
           PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
@@ -381,7 +443,7 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
         const y1 = preferenceExtSubscreenRowY(1);
         const hover1 = MouseIn(xL, y1 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
         DrawTextFit(
-          "敏感度等级 (Sensitivity 0–10)",
+          "敏感度等级（0–10）",
           xL,
           y1,
           PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
