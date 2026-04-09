@@ -82,6 +82,11 @@ declare global {
   function SpeechGetOOCRanges(msg: string): Array<{ start: number; length: number }>;
   function SpeechTransformGagGarbleIntensity(character: PlayerCharacter): number;
   function ChatRoomMessageReplyStop(): void;
+  function ChatRoomMessageGetReplyId(): string | undefined;
+  function ChatRoomOwnerPresenceRule(rule: string, arg: unknown): boolean;
+  function ChatRoomOwnerForbiddenWordCheck(msg: string): boolean;
+  function ChatRoomStimulationMessage(action: "Talk" | string): void;
+  function ServerSend(message: string, data: Record<string, unknown>): void;
   function DialogLeave(): void;
 
   function DrawText(text: string, x: number, y: number, color: string, backgroundColor?: string): void;
@@ -126,6 +131,7 @@ declare global {
   function ActivityOrgasmPrepare(C: BCCharacter, Bypass?: boolean): void;
   function ActivityOrgasmStart(C: BCCharacter): void;
   function ActivityOrgasmStop(C: BCCharacter, Progress: number): void;
+  function ChatRoomSendChatMessage(msg: string): boolean;
   var ActivityOrgasmGameDifficulty: number;
   var ActivityOrgasmRuined: boolean;
   var ActivityOrgasmGameTimer: number;

@@ -23,6 +23,8 @@ const TT_CUSTOM_GARBLE =
   "开启后，使用下方自定义拟声字参与堵嘴含糊；关闭则走游戏原版逻辑。";
 const TT_GARBLE_SOUND =
   "含糊时插入的拟声字，在框内直接输入（建议短字或词）。若清空后失焦/更改，将恢复为默认「呜」。最多 24 字符。";
+const TT_ACTION_REPLACE =
+  "开启后，公开聊天会改为发送 Action 特殊样式消息，完全绕过 BC 原版、其他模组与本模块自定义的所有堵嘴含糊。";
 const TT_SENSITIVITY_LEVEL =
   "敏感度等级（Sensitivity level）0–10。数值 ×10 会并入各类行为导致的 arousal 封顶（最大 100）；封顶至 100 时可触发高潮。";
 const TT_FORCE_ORGASM =
@@ -269,7 +271,7 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
 
       if (view === "ChatControl") {
         ensurePreferenceExtensionInputs("ChatControl");
-        positionPreferenceExtensionInput("ChatControl", 1);
+        positionPreferenceExtensionInput("ChatControl", 2);
         syncPreferenceInputsFromState("ChatControl");
 
         DrawText(
@@ -303,8 +305,17 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
 
         const y1 = preferenceExtSubscreenRowY(1);
         const hover1 = MouseIn(xL, y1 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+        DrawCheckbox(
+          PREFERENCE_EXT_SUBSCREEN.CHECKBOX_LEFT,
+          y1 - 32,
+          PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
+          PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
+          "",
+          state.settings.ChatControlSetting.actionMessageReplaceEnabled,
+          false
+        );
         DrawTextFit(
-          "Garble sound",
+          "Public chat -> action message style",
           xL,
           y1,
           PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
@@ -312,10 +323,24 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
           "Gray"
         );
 
+        const y2 = preferenceExtSubscreenRowY(2);
+        const hover2 = MouseIn(xL, y2 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+        DrawTextFit(
+          "Garble sound",
+          xL,
+          y2,
+          PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+          hover2 ? "Red" : "Black",
+          "Gray"
+        );
+
         if (hover0) {
           drawPreferenceTooltipBar(TT_CUSTOM_GARBLE);
         }
         if (hover1) {
+          drawPreferenceTooltipBar(TT_ACTION_REPLACE);
+        }
+        if (hover2) {
           drawPreferenceTooltipBar(TT_GARBLE_SOUND);
         }
       } else {
@@ -415,7 +440,6 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
       }
 
       if (view === "ChatControl") {
-        const xL = PREFERENCE_EXT_SUBSCREEN.START_X;
         const y0 = preferenceExtSubscreenRowY(0);
         if (
           MouseIn(
@@ -426,6 +450,18 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
           )
         ) {
           state.settings.ChatControlSetting.customGarbleEnabled = !state.settings.ChatControlSetting.customGarbleEnabled;
+          saveSettings(state.settings);
+        }
+        const y1 = preferenceExtSubscreenRowY(1);
+        if (
+          MouseIn(
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_LEFT,
+            y1 - 32,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE,
+            PREFERENCE_EXT_SUBSCREEN.CHECKBOX_SIZE
+          )
+        ) {
+          state.settings.ChatControlSetting.actionMessageReplaceEnabled = !state.settings.ChatControlSetting.actionMessageReplaceEnabled;
           saveSettings(state.settings);
         }
       } else if (view === "OrgasmControl") {

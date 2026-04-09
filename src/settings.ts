@@ -6,6 +6,7 @@ const BACKUP_SUFFIX = "Backup";
 export interface ChatControlSetting {
   customGarbleEnabled: boolean;
   garbleSound: string;
+  actionMessageReplaceEnabled: boolean;
 }
 
 /** 敏感度等级（Sensitivity level）0–10：施加于各类行为的 arousal 封顶加成（×10 并入 cap，封顶 100）。 */
@@ -26,6 +27,7 @@ export function getDefaultSettings(): LilianSettings {
     ChatControlSetting: {
       customGarbleEnabled: true,
       garbleSound: "呜",
+      actionMessageReplaceEnabled: false,
     },
     OrgasmControlSetting: {
       sensitivityLevel: 0,
@@ -74,6 +76,7 @@ export function sanitizeSettings(input: unknown): LilianSettings {
 
   let customGarbleEnabled = fallback.ChatControlSetting.customGarbleEnabled;
   let garbleSound = fallback.ChatControlSetting.garbleSound;
+  let actionMessageReplaceEnabled = fallback.ChatControlSetting.actionMessageReplaceEnabled;
   if (chatControl && typeof chatControl === "object") {
     const c = chatControl as Record<string, unknown>;
     if (typeof c.customGarbleEnabled === "boolean") {
@@ -82,12 +85,16 @@ export function sanitizeSettings(input: unknown): LilianSettings {
     if (typeof c.garbleSound === "string" && c.garbleSound.trim().length > 0) {
       garbleSound = c.garbleSound;
     }
+    if (typeof c.actionMessageReplaceEnabled === "boolean") {
+      actionMessageReplaceEnabled = c.actionMessageReplaceEnabled;
+    }
   }
 
   return {
     ChatControlSetting: {
       customGarbleEnabled,
       garbleSound,
+      actionMessageReplaceEnabled,
     },
     OrgasmControlSetting: {
       sensitivityLevel,
