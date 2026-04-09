@@ -137,7 +137,7 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
         const zone = args[2];
         const activity = args[1];
         const maxEffective = computeMaxForArousalTimer(C, activity, zone, args[4]);
-        const { applied, overflow } = computeIntendedArousalDelta(
+        const { overflow } = computeIntendedArousalDelta(
           oldTimer,
           incoming0,
           progressNow,
@@ -145,10 +145,6 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
           maxEffective
         );
         desireValue += overflow;
-        const actionTriggersOrgasm = applied > 0 && progressNow < 100 && (progressNow + applied) >= 100;
-        if (actionTriggersOrgasm) {
-          pendingOrgasmGameDifficultyOverride = Math.max(6, Math.floor(desireValue));
-        }
       }
 
       if (org.sensitivityLevel > 0) {
@@ -183,6 +179,9 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
       allowRuinedBypassOnNextStart = false;
       return next(args);
     }
+
+    // Any orgasm attempt while force mode is enabled should use desire-based mini-game difficulty.
+    pendingOrgasmGameDifficultyOverride = Math.max(6, Math.floor(desireValue));
 
     applyDesireDecay();
     const threshold = org.forceOrgasmDesireThreshold;
