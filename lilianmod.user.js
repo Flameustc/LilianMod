@@ -986,6 +986,8 @@ One of mods you are using is using an old version of SDK. It will work for now b
   var DESIRE_RUINED_BONUS = 5;
   var desireValue = 0;
   var lastDesireDecayAt = null;
+  var allowRuinedBypassOnNextStart = false;
+  var pendingOrgasmGameDifficultyOverride = null;
   function getNow() {
     return CurrentTime;
   }
@@ -1059,6 +1061,8 @@ One of mods you are using is using an old version of SDK. It will work for now b
       const org = getSettings().OrgasmControlSetting;
       if (!org.forceOrgasmEnabled) {
         desireValue = 0;
+        allowRuinedBypassOnNextStart = false;
+        pendingOrgasmGameDifficultyOverride = null;
       }
       if (org.sensitivityLevel <= 0 && !org.forceOrgasmEnabled) {
         return next(args);
@@ -1082,7 +1086,7 @@ One of mods you are using is using an old version of SDK. It will work for now b
           const zone = args[2];
           const activity = args[1];
           const maxEffective = computeMaxForArousalTimer(C, activity, zone, args[4]);
-          const { overflow } = computeIntendedArousalDelta(
+          const { applied, overflow } = computeIntendedArousalDelta(
             oldTimer,
             incoming0,
             progressNow,
@@ -1090,6 +1094,10 @@ One of mods you are using is using an old version of SDK. It will work for now b
             maxEffective
           );
           desireValue += overflow;
+          const actionTriggersOrgasm = applied > 0 && progressNow < 100 && progressNow + applied >= 100;
+          if (actionTriggersOrgasm) {
+            pendingOrgasmGameDifficultyOverride = Math.max(6, Math.floor(desireValue));
+          }
         }
         if (org.sensitivityLevel > 0) {
           const base = Number.isFinite(args[3]) ? args[3] : 0;
@@ -1116,22 +1124,48 @@ One of mods you are using is using an old version of SDK. It will work for now b
       }
       const org = getSettings().OrgasmControlSetting;
       if (!org.forceOrgasmEnabled) {
+        allowRuinedBypassOnNextStart = false;
         return next(args);
       }
       applyDesireDecay();
       const threshold = org.forceOrgasmDesireThreshold;
       if (desireValue <= threshold) {
+        allowRuinedBypassOnNextStart = false;
         return next(args);
       }
+      allowRuinedBypassOnNextStart = true;
       forcePreparePlayerOrgasm(C);
-      desireValue = 0;
     });
     mod.hookFunction("ActivityOrgasmStart", 100, (args, next) => {
       const C = args[0];
-      if (C.IsPlayer() && getSettings().OrgasmControlSetting.forceOrgasmEnabled) {
+      if (C.IsPlayer() && getSettings().OrgasmControlSetting.forceOrgasmEnabled && allowRuinedBypassOnNextStart) {
         ActivityOrgasmRuined = false;
+        allowRuinedBypassOnNextStart = false;
       }
       return next(args);
+    });
+    mod.hookFunction("ActivityOrgasmGameGenerate", 100, (args, next) => {
+      const ret = next(args);
+      if (!getSettings().OrgasmControlSetting.forceOrgasmEnabled) {
+        pendingOrgasmGameDifficultyOverride = null;
+        return ret;
+      }
+      if (args[0] === 0 && pendingOrgasmGameDifficultyOverride != null) {
+        ActivityOrgasmGameDifficulty = pendingOrgasmGameDifficultyOverride;
+        pendingOrgasmGameDifficultyOverride = null;
+      }
+      return ret;
+    });
+    mod.hookFunction("ActivityOrgasmStop", 100, (args, next) => {
+      const C = args[0];
+      const stopProgress = args[1];
+      const ret = next(args);
+      if (C.IsPlayer() && getSettings().OrgasmControlSetting.forceOrgasmEnabled && typeof stopProgress === "number" && stopProgress <= 20) {
+        desireValue = 0;
+        allowRuinedBypassOnNextStart = false;
+        pendingOrgasmGameDifficultyOverride = null;
+      }
+      return ret;
     });
   }
 
