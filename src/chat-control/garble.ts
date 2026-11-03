@@ -12,7 +12,13 @@ function garbleChar(c: string, garbleSound: string[], allowHyphen: boolean): { c
   }
 }
 
-export function garbleMessage(msg: string, gagLevel: number, garbleSound: string[]): string {
+/** One-element list, matching the previous hook: the whole sound string is one symbol, not split per character. */
+export function garbleSoundList(sound: string): string[] {
+  const cleaned = sound.trim();
+  return cleaned.length > 0 ? [cleaned] : ["呜"];
+}
+
+export function garbleMessage(msg: string, gagLevel: number, garbleSound: string[], ignoreOOC = false): string {
   if (gagLevel <= 0) return msg;
 
   let inOOC = false;
@@ -24,13 +30,13 @@ export function garbleMessage(msg: string, gagLevel: number, garbleSound: string
     switch (msg[i]) {
       case "(":
       case "（":
-        inOOC = true;
+        if (!ignoreOOC) inOOC = true;
         allowHyphen = false;
         output.push(msg[i++]);
         continue;
       case ")":
       case "）":
-        inOOC = false;
+        if (!ignoreOOC) inOOC = false;
         allowHyphen = false;
         output.push(msg[i++]);
         continue;
