@@ -33,6 +33,12 @@ declare global {
     MemberNumber: number;
     Ownership?: { MemberNumber?: number; Name?: string } | null;
     IsPlayer(): boolean;
+    ArousalSettings?: {
+      Progress: number;
+      ProgressTimer: number;
+      OrgasmTimer?: number;
+      OrgasmStage?: number;
+    };
     ExtensionSettings?: Record<string, string>;
     ChatSettings: {
       OOCAutoClose: boolean;

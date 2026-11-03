@@ -17,8 +17,16 @@ import {
   scaleProgressFactor,
 } from "./desire";
 import { onRuinedOrgasmPath, registerRuinedOrgasmIntercept } from "./ruinedIntercept";
+import {
+  commitDebugArousal,
+  commitDebugDesire,
+  createLilianDebugApi,
+  readDebugArousal,
+  type LilianDebugApi,
+} from "./debugApi";
 
 let installed = false;
+let debugApi: LilianDebugApi | null = null;
 
 /** >0 while `ActivitySetArousalTimer` runs with sensitivity cap applied (for `PreferenceGetZoneOrgasm` incremental bypass). */
 let lilianArousalBoostDepth = 0;
@@ -133,9 +141,46 @@ function withMistressProgress<T>(
   }
 }
 
+function debugNow(): number {
+  return typeof CurrentTime === "number" && Number.isFinite(CurrentTime) ? CurrentTime : Number.NaN;
+}
+
+function readPlayerArousal(): number {
+  return readDebugArousal(Player);
+}
+
+function writePlayerArousal(value: number): number {
+  const applied = commitDebugArousal(Player, value);
+  if (applied != null && Player.ArousalSettings != null && typeof ActivityChatRoomArousalSync === "function") {
+    ActivityChatRoomArousalSync(Player as unknown as BCCharacter);
+  }
+  return applied ?? readPlayerArousal();
+}
+
+function writeHiddenDesire(value: number, now: number): number {
+  const state = { desire: desireValue, lastDecayAt: lastDesireDecayAt };
+  commitDebugDesire(state, value, now);
+  desireValue = state.desire;
+  lastDesireDecayAt = state.lastDecayAt;
+  return desireValue;
+}
+
+/** Console-only API. Installed onto `window.LilianMod.debug` from the mod entry. */
+export function getLilianDebugApi(): LilianDebugApi | null {
+  return debugApi;
+}
+
 export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => LilianSettings): void {
   if (installed) return;
   installed = true;
+
+  debugApi = createLilianDebugApi({
+    readDesire: () => desireValue,
+    writeDesire: writeHiddenDesire,
+    readArousal: readPlayerArousal,
+    writeArousal: writePlayerArousal,
+    now: debugNow,
+  });
 
   onRuinedOrgasmPath(() => {
     if (!getSettings().OrgasmControlSetting.forceOrgasmEnabled) return;
