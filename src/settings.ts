@@ -12,7 +12,7 @@ export interface ChatControlSetting {
 export interface OrgasmControlSetting {
   sensitivityLevel: number;
   forceOrgasmEnabled: boolean;
-  /** 欲望达到或超过此值（0–100）时触发强制高潮。默认 0：欲望恒 ≥ 0，等于不设额外门槛。 */
+  /** 大于 0 且欲望达到或超过此值时才绕过高潮管理。0 表示关闭绕过，欲望再高也不强制。 */
   forceOrgasmDesireThreshold: number;
   /**
    * 除 `Player.Ownership` 主人以外、也视为女主人的成员号。

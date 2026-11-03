@@ -58,10 +58,12 @@ test("ruined orgasm still grants a flat desire bonus", () => {
   assert.equal(DESIRE_RUINED_BONUS, 5);
 });
 
-test("force orgasm threshold is inclusive", () => {
+test("force orgasm bypass requires a positive threshold and desire >= threshold", () => {
   assert.equal(desireReachesForceThreshold(10, 10), true);
   assert.equal(desireReachesForceThreshold(9, 10), false);
-  assert.equal(desireReachesForceThreshold(0, 0), true);
+  assert.equal(desireReachesForceThreshold(1, 1), true);
+  assert.equal(desireReachesForceThreshold(100, 0), false);
+  assert.equal(desireReachesForceThreshold(0, 0), false);
 });
 
 test("mini-game difficulty follows desire only", () => {

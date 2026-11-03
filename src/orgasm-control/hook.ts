@@ -240,6 +240,7 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
     pendingOrgasmGameDifficultyOverride = forceOrgasmGameDifficulty(desireValue);
 
     applyDesireDecay();
+    // threshold 0 disables the bypass even if desire is high; otherwise desire >= threshold.
     const threshold = org.forceOrgasmDesireThreshold;
     if (!desireReachesForceThreshold(desireValue, threshold)) {
       allowRuinedBypassOnNextStart = false;

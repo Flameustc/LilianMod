@@ -58,9 +58,12 @@ export function desireAfterDecay(desire: number, steps: number): number {
   return Math.max(0, current - steps * DESIRE_DECAY_STEP);
 }
 
-/** Force orgasm when desire reaches the threshold (`>=`, not `>`). */
+/**
+ * Bypass Denial/Edge/BCX only when `threshold > 0` and `desire >= threshold`.
+ * A threshold of 0 turns the bypass off no matter how high desire is.
+ */
 export function desireReachesForceThreshold(desire: number, threshold: number): boolean {
-  if (!Number.isFinite(desire) || !Number.isFinite(threshold)) return false;
+  if (!Number.isFinite(desire) || !Number.isFinite(threshold) || threshold <= 0) return false;
   return desire >= threshold;
 }
 
