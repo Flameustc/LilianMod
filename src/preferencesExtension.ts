@@ -1,4 +1,10 @@
-import { LilianSettings, PLUGIN_KEY, getDefaultSettings } from "./settings";
+import {
+  formatMistressMemberNumbers,
+  getDefaultSettings,
+  LilianSettings,
+  parseMistressMemberNumbers,
+  PLUGIN_KEY,
+} from "./settings";
 import { loadSettings, saveSettings } from "./storage";
 import {
   PREFERENCE_EXT_EXIT,
@@ -16,6 +22,8 @@ const MAIN_ICON = "Icons/Preference.png";
 const PREF_INPUT_GARBLE = `${PLUGIN_KEY}-pref-garble-sound`;
 const PREF_INPUT_SENSITIVITY = `${PLUGIN_KEY}-pref-sensitivity-level`;
 const PREF_INPUT_DESIRE_THRESHOLD = `${PLUGIN_KEY}-pref-desire-threshold`;
+const PREF_INPUT_MISTRESS_MEMBERS = `${PLUGIN_KEY}-pref-mistress-members`;
+const MISTRESS_MEMBERS_MAX_LEN = 400;
 const GARBLE_SOUND_MAX_LEN = 24;
 
 /** 悬停配置项名称时于底部条展示（行为对齐 LSCG `Tooltip` + `drawTooltip`） */
@@ -26,9 +34,11 @@ const TT_GARBLE_SOUND =
 const TT_SENSITIVITY_LEVEL =
   "敏感度等级（Sensitivity level）0–10。数值 ×10 会并入各类行为导致的 arousal 封顶（最大 100）；封顶至 100 时可触发高潮。";
 const TT_FORCE_ORGASM =
-  "开启后，玩家高潮准备阶段可无视 Denial/Edged 及 BCX 的高潮阻断规则强制进入高潮流程；需累积欲望超过下方阈值后才触发。";
+  "开启后，欲望达到或超过下方阈值时，高潮准备会无视 Denial/Edged 及 BCX 的阻断，进入可抵抗的高潮流程；抵抗失败为正常高潮（清除 Ruined），不是 ruined。";
 const TT_DESIRE_THRESHOLD =
-  "强制高潮欲望阈值（0–100，默认 0）。行为产生的溢出快感会累积为欲望值，每 1.9 秒衰减 2 点；仅当欲望大于此值时才触发强制高潮，否则走原版。走 ruined 等路径时会少量增加欲望。";
+  "强制高潮欲望阈值（0–100，默认 0）。进度若会超过 100，溢出减去当前欲望的一半后计入隐藏欲望，每 1.9 秒衰减 2 点；欲望达到或超过此值才强制高潮。阈值为 0 时不设额外门槛。ruined 额外 +5 欲望。";
+const TT_MISTRESS_MEMBERS =
+  "Ownership 中的主人会自动视为女主人。这里再填额外成员号（逗号或空格分隔，最多 32 个）。来源或目标是女主人时，玩家从该互动获得的进度因子翻倍。";
 
 function drawPreferenceTooltipBar(text: string): void {
   const { X: x, Y: y, W: w, H: h } = PREFERENCE_EXT_TOOLTIP_BAR;
@@ -95,6 +105,7 @@ function removePreferenceExtensionInputs(): void {
   ElementRemove(PREF_INPUT_GARBLE);
   ElementRemove(PREF_INPUT_SENSITIVITY);
   ElementRemove(PREF_INPUT_DESIRE_THRESHOLD);
+  ElementRemove(PREF_INPUT_MISTRESS_MEMBERS);
 }
 
 export function registerPreferencesExtension(state: { settings: LilianSettings }): void {
@@ -176,6 +187,22 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
       };
       thrInp.addEventListener("change", commitThr);
       thrInp.addEventListener("blur", commitThr);
+
+      const mistressInp = ElementCreateInput(
+        PREF_INPUT_MISTRESS_MEMBERS,
+        "text",
+        formatMistressMemberNumbers(state.settings.OrgasmControlSetting.mistressMemberNumbers),
+        String(MISTRESS_MEMBERS_MAX_LEN)
+      );
+      mistressInp.setAttribute("autocomplete", "off");
+      const commitMistresses = (): void => {
+        const parsed = parseMistressMemberNumbers(mistressInp.value);
+        state.settings.OrgasmControlSetting.mistressMemberNumbers = parsed;
+        mistressInp.value = formatMistressMemberNumbers(parsed);
+        saveSettings(state.settings);
+      };
+      mistressInp.addEventListener("change", commitMistresses);
+      mistressInp.addEventListener("blur", commitMistresses);
     }
   }
 
@@ -199,9 +226,17 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
         PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
         PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
       );
-    } else {
+    } else if (row === 2) {
       ElementPosition(
         PREF_INPUT_DESIRE_THRESHOLD,
+        cx,
+        cy,
+        PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
+        PREFERENCE_EXT_SUBSCREEN.CONTROL_BTN_H
+      );
+    } else {
+      ElementPosition(
+        PREF_INPUT_MISTRESS_MEMBERS,
         cx,
         cy,
         PREFERENCE_EXT_SUBSCREEN.CONTROL_W,
@@ -226,6 +261,11 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
       if (thr && document.activeElement !== thr) {
         const wantT = String(state.settings.OrgasmControlSetting.forceOrgasmDesireThreshold);
         if (thr.value !== wantT) thr.value = wantT;
+      }
+      const mistress = document.getElementById(PREF_INPUT_MISTRESS_MEMBERS) as HTMLInputElement | null;
+      if (mistress && document.activeElement !== mistress) {
+        const wantM = formatMistressMemberNumbers(state.settings.OrgasmControlSetting.mistressMemberNumbers);
+        if (mistress.value !== wantM) mistress.value = wantM;
       }
     }
   }
@@ -322,6 +362,7 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
         ensurePreferenceExtensionInputs("OrgasmControl");
         positionPreferenceExtensionInput("OrgasmControl", 1);
         positionPreferenceExtensionInput("OrgasmControl", 2);
+        positionPreferenceExtensionInput("OrgasmControl", 3);
         syncPreferenceInputsFromState("OrgasmControl");
 
         DrawText(
@@ -374,6 +415,17 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
           hover2 ? "Red" : "Black",
           "Gray"
         );
+
+        const y3 = preferenceExtSubscreenRowY(3);
+        const hover3 = MouseIn(xL, y3 - 32, PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH, 64);
+        DrawTextFit(
+          "额外女主人成员号",
+          xL,
+          y3,
+          PREFERENCE_EXT_SUBSCREEN.LABEL_WIDTH,
+          hover3 ? "Red" : "Black",
+          "Gray"
+        );
         if (hover0) {
           drawPreferenceTooltipBar(TT_FORCE_ORGASM);
         }
@@ -382,6 +434,9 @@ export function registerPreferencesExtension(state: { settings: LilianSettings }
         }
         if (hover2) {
           drawPreferenceTooltipBar(TT_DESIRE_THRESHOLD);
+        }
+        if (hover3) {
+          drawPreferenceTooltipBar(TT_MISTRESS_MEMBERS);
         }
       }
 

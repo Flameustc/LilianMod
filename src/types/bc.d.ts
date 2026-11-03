@@ -18,6 +18,7 @@ export interface BCActivity {
 
 export interface BCCharacter {
   ID: number;
+  MemberNumber?: number;
   IsPlayer(): boolean;
   ArousalSettings: {
     Progress: number;
@@ -30,6 +31,8 @@ export interface BCCharacter {
 declare global {
   interface PlayerCharacter {
     MemberNumber: number;
+    Ownership?: { MemberNumber?: number; Name?: string } | null;
+    IsPlayer(): boolean;
     ExtensionSettings?: Record<string, string>;
     ChatSettings: {
       OOCAutoClose: boolean;
@@ -112,7 +115,7 @@ declare global {
   ): void;
   function MouseIn(x: number, y: number, width: number, height: number): boolean;
 
-  function PreferenceGetZoneOrgasm(character: BCCharacter, zone: string): boolean;
+  function PreferenceGetZoneOrgasm(character: { IsPlayer(): boolean }, zone: string): boolean;
   function ActivityChatRoomArousalSync(character: BCCharacter): void;
   /** Declared for `bondage-club-mod-sdk` `hookFunction` typing (`GetDotedPathType<typeof globalThis, ...>`). */
   function ActivitySetArousalTimer(
@@ -120,6 +123,31 @@ declare global {
     Activity: BCActivity | null,
     Zone: string,
     Progress: number,
+    Asset?: unknown
+  ): void;
+  /** Source `S`, target `C`. Factor is applied inside, before `ActivitySetArousalTimer`. */
+  function ActivityEffect(
+    S: BCCharacter,
+    C: BCCharacter,
+    A: unknown,
+    Z: string,
+    Count?: number,
+    Asset?: unknown
+  ): void;
+  function ActivityEffectFlat(
+    S: BCCharacter,
+    C: BCCharacter,
+    Amount: number,
+    Z: string,
+    Count?: number,
+    Asset?: unknown
+  ): void;
+  /** Player self-arousal when acting on someone else. Passes Source and Target; the timer call does not. */
+  function ActivityRunSelf(
+    Source: BCCharacter,
+    Target: BCCharacter,
+    Activity: BCActivity,
+    Group: unknown,
     Asset?: unknown
   ): void;
   function ActivityOrgasmGameGenerate(Progress: number): void;

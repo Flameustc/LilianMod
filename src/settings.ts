@@ -12,8 +12,52 @@ export interface ChatControlSetting {
 export interface OrgasmControlSetting {
   sensitivityLevel: number;
   forceOrgasmEnabled: boolean;
-  /** 仅当累积欲望值大于此数（0–100）时才触发强制高潮；默认 0 表示不额外门槛。 */
+  /** 欲望达到或超过此值（0–100）时触发强制高潮。默认 0：欲望恒 ≥ 0，等于不设额外门槛。 */
   forceOrgasmDesireThreshold: number;
+  /**
+   * 除 `Player.Ownership` 主人以外、也视为女主人的成员号。
+   * 互动来源或目标是女主人时，玩家进度因子 ×2。
+   */
+  mistressMemberNumbers: number[];
+}
+
+const MISTRESS_MEMBER_LIMIT = 32;
+
+function pushMistressMember(out: number[], seen: Set<number>, n: number): void {
+  if (!Number.isInteger(n) || n <= 0 || n > 999_999_999) return;
+  if (seen.has(n) || out.length >= MISTRESS_MEMBER_LIMIT) return;
+  seen.add(n);
+  out.push(n);
+}
+
+/** 从存盘数组或输入框文本解析女主人成员号：去重、正整数、最多 32 个。 */
+export function parseMistressMemberNumbers(value: unknown): number[] {
+  const out: number[] = [];
+  const seen = new Set<number>();
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item === "number" && Number.isInteger(item)) {
+        pushMistressMember(out, seen, item);
+      } else if (typeof item === "string") {
+        for (const part of item.split(/[^0-9]+/)) {
+          if (!part) continue;
+          pushMistressMember(out, seen, Number.parseInt(part, 10));
+        }
+      }
+    }
+    return out;
+  }
+  if (typeof value === "string") {
+    for (const part of value.split(/[^0-9]+/)) {
+      if (!part) continue;
+      pushMistressMember(out, seen, Number.parseInt(part, 10));
+    }
+  }
+  return out;
+}
+
+export function formatMistressMemberNumbers(values: readonly number[]): string {
+  return values.join(", ");
 }
 
 export interface LilianSettings {
@@ -31,6 +75,7 @@ export function getDefaultSettings(): LilianSettings {
       sensitivityLevel: 0,
       forceOrgasmEnabled: false,
       forceOrgasmDesireThreshold: 0,
+      mistressMemberNumbers: [],
     },
   };
 }
@@ -55,6 +100,7 @@ export function sanitizeSettings(input: unknown): LilianSettings {
   let sensitivityLevel = fallback.OrgasmControlSetting.sensitivityLevel;
   let forceOrgasmEnabled = fallback.OrgasmControlSetting.forceOrgasmEnabled;
   let forceOrgasmDesireThreshold = fallback.OrgasmControlSetting.forceOrgasmDesireThreshold;
+  let mistressMemberNumbers = fallback.OrgasmControlSetting.mistressMemberNumbers;
   if (orgasm && typeof orgasm === "object") {
     const o = orgasm as Record<string, unknown>;
     const ov = o.sensitivityLevel;
@@ -69,6 +115,9 @@ export function sanitizeSettings(input: unknown): LilianSettings {
     const th = o.forceOrgasmDesireThreshold;
     if (typeof th === "number" && Number.isFinite(th)) {
       forceOrgasmDesireThreshold = Math.min(100, Math.max(0, Math.floor(th)));
+    }
+    if ("mistressMemberNumbers" in o) {
+      mistressMemberNumbers = parseMistressMemberNumbers(o.mistressMemberNumbers);
     }
   }
 
@@ -93,6 +142,7 @@ export function sanitizeSettings(input: unknown): LilianSettings {
       sensitivityLevel,
       forceOrgasmEnabled,
       forceOrgasmDesireThreshold,
+      mistressMemberNumbers,
     },
   };
 }

@@ -1,7 +1,21 @@
 import type { ModSDKModAPI } from "bondage-club-mod-sdk";
 import type { LilianSettings } from "../settings";
 import type { BCActivity, BCCharacter } from "../types/bc";
-import { computeIntendedArousalDelta, computeMaxForArousalTimer } from "./sensitivity";
+import {
+  DESIRE_DECAY_MS,
+  DESIRE_RUINED_BONUS,
+  MISTRESS_PROGRESS_MULTIPLIER,
+  arousalTimerIncoming,
+  asMemberNumber,
+  computeDesireOverflow,
+  computeTimerBeforeMaxCap,
+  desireAfterDecay,
+  desireReachesForceThreshold,
+  forceOrgasmGameDifficulty,
+  interactionDoublesPlayerProgress,
+  otherCharacterMemberNumber,
+  scaleProgressFactor,
+} from "./desire";
 import { onRuinedOrgasmPath, registerRuinedOrgasmIntercept } from "./ruinedIntercept";
 
 let installed = false;
@@ -9,12 +23,10 @@ let installed = false;
 /** >0 while `ActivitySetArousalTimer` runs with sensitivity cap applied (for `PreferenceGetZoneOrgasm` incremental bypass). */
 let lilianArousalBoostDepth = 0;
 
-const DESIRE_DECAY_MS = 1900;
-const DESIRE_DECAY_STEP = 2;
-const DESIRE_RUINED_BONUS = 5;
-
 let desireValue = 0;
 let lastDesireDecayAt: number | null = null;
+/** >1 while ActivityEffect / ActivityEffectFlat / ActivityRunSelf should double the player's factor. */
+let mistressProgressMultiplier = 1;
 /** Set by Prepare hook when this orgasm attempt is allowed to bypass ruined. Consumed by Start hook once. */
 let allowRuinedBypassOnNextStart = false;
 /** Set when an action pushes arousal to orgasm; consumed by ActivityOrgasmGameGenerate(0). */
@@ -33,7 +45,7 @@ function applyDesireDecay(): void {
   const elapsed = now - lastDesireDecayAt;
   const steps = Math.floor(elapsed / DESIRE_DECAY_MS);
   if (steps <= 0) return;
-  desireValue = Math.max(0, desireValue - steps * DESIRE_DECAY_STEP);
+  desireValue = desireAfterDecay(desireValue, steps);
   lastDesireDecayAt += steps * DESIRE_DECAY_MS;
 }
 
@@ -88,6 +100,39 @@ function applySensitivityCapToActivitySetArousalTimerArgs(
   args[1] = clone;
 }
 
+function characterIsPlayer(c: BCCharacter | null | undefined): boolean {
+  return typeof c?.IsPlayer === "function" && c.IsPlayer();
+}
+
+/**
+ * `ActivitySetArousalTimer` has no Source/Target. Mark mistress interactions here, then
+ * scale the factor inside the timer hook before vanilla applies it.
+ * `ActivityRunSelf` is the player's own meter when the target is someone else.
+ */
+function withMistressProgress<T>(
+  getSettings: () => LilianSettings,
+  source: BCCharacter | null | undefined,
+  target: BCCharacter | null | undefined,
+  progressGoesToPlayer: boolean,
+  run: () => T
+): T {
+  if (!progressGoesToPlayer) return run();
+  const doubles = interactionDoublesPlayerProgress(
+    otherCharacterMemberNumber(asMemberNumber(source?.MemberNumber), characterIsPlayer(source)),
+    otherCharacterMemberNumber(asMemberNumber(target?.MemberNumber), characterIsPlayer(target)),
+    asMemberNumber(Player.Ownership?.MemberNumber),
+    getSettings().OrgasmControlSetting.mistressMemberNumbers
+  );
+  if (!doubles) return run();
+  const previous = mistressProgressMultiplier;
+  mistressProgressMultiplier *= MISTRESS_PROGRESS_MULTIPLIER;
+  try {
+    return run();
+  } finally {
+    mistressProgressMultiplier = previous;
+  }
+}
+
 export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => LilianSettings): void {
   if (installed) return;
   installed = true;
@@ -100,10 +145,26 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
 
   registerRuinedOrgasmIntercept(mod, 115);
 
+  mod.hookFunction("ActivityEffect", 50, (args, next) => {
+    return withMistressProgress(getSettings, args[0], args[1], characterIsPlayer(args[1]), () => next(args));
+  });
+
+  mod.hookFunction("ActivityEffectFlat", 50, (args, next) => {
+    return withMistressProgress(getSettings, args[0], args[1], characterIsPlayer(args[1]), () => next(args));
+  });
+
+  mod.hookFunction("ActivityRunSelf", 50, (args, next) => {
+    return withMistressProgress(getSettings, args[0], args[1], characterIsPlayer(args[0]), () => next(args));
+  });
+
   mod.hookFunction("ActivitySetArousalTimer", 50, (args, next) => {
     const C = args[0];
     if (!C.IsPlayer()) {
       return next(args);
+    }
+
+    if (mistressProgressMultiplier !== 1) {
+      args[3] = scaleProgressFactor(args[3], mistressProgressMultiplier);
     }
 
     const org = getSettings().OrgasmControlSetting;
@@ -127,24 +188,19 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
     try {
       if (org.forceOrgasmEnabled) {
         applyDesireDecay();
-        const incoming0 = Number.isFinite(args[3]) ? args[3] : 0;
         const arousal = C.ArousalSettings;
         let oldTimer = arousal.ProgressTimer;
         if (oldTimer == null || typeof oldTimer !== "number" || Number.isNaN(oldTimer)) {
           oldTimer = 0;
         }
-        const progressNow = arousal.Progress;
-        const zone = args[2];
-        const activity = args[1];
-        const maxEffective = computeMaxForArousalTimer(C, activity, zone, args[4]);
-        const { overflow } = computeIntendedArousalDelta(
-          oldTimer,
-          incoming0,
-          progressNow,
-          org.sensitivityLevel,
-          maxEffective
-        );
-        desireValue += overflow;
+        let progressNow = arousal.Progress;
+        if (typeof progressNow !== "number" || !Number.isFinite(progressNow)) {
+          progressNow = 0;
+        }
+        // Progress_after_increase uses the pre-Max timer (mistress factor ×2, then + sensitivity), anchored at 100.
+        const incoming = arousalTimerIncoming(args[3], org.sensitivityLevel);
+        const progressAfterIncrease = progressNow + computeTimerBeforeMaxCap(oldTimer, incoming);
+        desireValue += computeDesireOverflow(progressAfterIncrease, desireValue);
       }
 
       if (org.sensitivityLevel > 0) {
@@ -181,11 +237,11 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
     }
 
     // Any orgasm attempt while force mode is enabled should use desire-based mini-game difficulty.
-    pendingOrgasmGameDifficultyOverride = Math.max(6, Math.floor(desireValue));
+    pendingOrgasmGameDifficultyOverride = forceOrgasmGameDifficulty(desireValue);
 
     applyDesireDecay();
     const threshold = org.forceOrgasmDesireThreshold;
-    if (desireValue <= threshold) {
+    if (!desireReachesForceThreshold(desireValue, threshold)) {
       allowRuinedBypassOnNextStart = false;
       return next(args);
     }
