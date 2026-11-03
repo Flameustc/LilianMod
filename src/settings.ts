@@ -1,6 +1,6 @@
 export const PLUGIN_KEY = "LilianMod";
 /** 仅写入存盘元数据（如新于旧备份比对），不参与「能否加载」判断。 */
-export const SETTINGS_VERSION = "v0.3.0";
+export const SETTINGS_VERSION = "v0.4.0";
 const BACKUP_SUFFIX = "Backup";
 
 export interface ChatControlSetting {
