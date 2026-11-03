@@ -1,12 +1,13 @@
 {
   "name": "lilianmod",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Minimal BondageClub extension settings plugin in TypeScript",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --format=iife --target=es2018 --outfile=dist/lilianmod.user.js --banner:js=\"// ==UserScript==\\n// @name LilianMod\\n// @namespace lilianmod\\n// @version 0.3.0\\n// @description LilianMod for BondageClub\\n// @match https://www.bondageprojects.elementfx.com/*\\n// @match https://bondageprojects.elementfx.com/*\\n// @match https://www.bondageprojects.com/*\\n// @match http://localhost:*/*\\n// @match https://localhost:*/*\\n// @grant none\\n// ==/UserScript==\"",
-    "watch": "esbuild src/index.ts --bundle --format=iife --target=es2018 --outfile=dist/lilianmod.user.js --watch",
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
+    "test": "esbuild src/reverse-insert/catalog.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/lilian-reverse-insert-test.js && node /tmp/lilian-reverse-insert-test.js",
     "check:garble": "esbuild src/chat-control/garble.selfcheck.ts --bundle --platform=node --format=cjs --outfile=dist/garble.selfcheck.cjs && node dist/garble.selfcheck.cjs"
   },
   "devDependencies": {

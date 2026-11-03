@@ -19,28 +19,27 @@ export interface BCActivity {
 export interface BCCharacter {
   ID: number;
   MemberNumber?: number;
+  AssetFamily?: string;
   IsPlayer(): boolean;
   ArousalSettings: {
     Progress: number;
     ProgressTimer: number;
     OrgasmTimer?: number;
     OrgasmStage?: number;
+    Active?: string;
+    Activity?: string | null;
   };
 }
 
 declare global {
   interface PlayerCharacter {
+    ID: number;
     MemberNumber: number;
+    AssetFamily?: string;
     Ownership?: { MemberNumber?: number; Name?: string } | null;
     IsPlayer(): boolean;
-    ArousalSettings?: {
-      Progress: number;
-      ProgressTimer: number;
-      OrgasmTimer?: number;
-      OrgasmStage?: number;
-    };
+    ArousalSettings?: BCCharacter["ArousalSettings"];
     ExtensionSettings?: Record<string, string>;
-    IsPlayer(): boolean;
     ChatSettings: {
       OOCAutoClose: boolean;
     };
@@ -65,10 +64,18 @@ declare global {
   const MouseX: number;
   const MouseY: number;
   const CurrentTime: number;
-  const CurrentCharacter: { ID: number } | null;
+  /** Right-hand sheet. The player when only self is open; the other character when their sheet is open (self is then drawn on the left). */
+  const CurrentCharacter: BCCharacter | null;
   const MainCanvas: CanvasRenderingContext2D;
   class DictionaryBuilder {
-    sourceCharacter(character: PlayerCharacter): DictionaryBuilder;
+    sourceCharacter(character: PlayerCharacter | BCCharacter): DictionaryBuilder;
+    targetCharacter(character: PlayerCharacter | BCCharacter, index?: number): DictionaryBuilder;
+    focusGroup(groupName: string): DictionaryBuilder;
+    asset(
+      asset: { Name: string; Group: { Name: string } },
+      tag?: string,
+      craftName?: string
+    ): DictionaryBuilder;
     build(): any[];
   }
 
@@ -182,4 +189,67 @@ declare global {
   var ActivityOrgasmGameDifficulty: number;
   var ActivityOrgasmRuined: boolean;
   var ActivityOrgasmGameTimer: number;
+
+  /** Vanilla activity registry (`var` in Female3DCG.js). Ordering is a top-level `let` shared by classic scripts. */
+  var ActivityFemale3DCG: Array<{
+    Name: string;
+    ActivityID?: number;
+    MaxProgress?: number;
+    MaxProgressSelf?: number;
+    Prerequisite?: readonly string[];
+    Target?: readonly string[];
+    TargetSelf?: readonly string[] | boolean;
+  }>;
+  var ActivityFemale3DCGOrdering: string[];
+
+  function ActivityDictionaryText(keyword: string): string;
+  function ActivityAllowedForGroup(character: BCCharacter, groupName: string): LilianItemActivity[];
+  function ActivityRun(
+    actor: BCCharacter,
+    acted: BCCharacter,
+    targetGroup: { Name: string },
+    itemActivity: LilianItemActivity,
+    sendMessage?: boolean
+  ): void;
+  function ActivityCheckPrerequisites(
+    activity: { Name: string; Prerequisite?: readonly string[] },
+    acting: BCCharacter,
+    acted: BCCharacter,
+    group: { Name: string }
+  ): boolean;
+  function ActivityCheckPermissions(activity: { Name: string }, character: BCCharacter, other: boolean): boolean;
+  function ActivityGenerateItemActivitiesFromNeed(
+    acting: BCCharacter,
+    acted: BCCharacter,
+    needsItem: string,
+    activity: { Name: string },
+    targetGroup: { Name: string },
+    useTargetItems?: boolean
+  ): LilianItemActivity[];
+  function ActivityGetGroupOrMirror(family: string, groupName: string): { Name: string } | null;
+  function ActivityPossibleOnGroup(character: BCCharacter, groupName: string): boolean;
+  function AssetGetActivity(family: string, name: string): { Name: string; ActivityID?: number; Prerequisite?: readonly string[] } | null;
+  function InventoryIsBlockedByDistance(character: BCCharacter): boolean;
+  function CommonStringSubstitute(template: string, substitutions: ReadonlyArray<[string, string]>): string;
+  function ChatRoomMessageRunExtractors(
+    data: { Content: string; Type: string; Dictionary?: unknown[]; Sender?: number },
+    character: BCCharacter
+  ): { substitutions?: Array<[string, string]> };
+}
+
+interface LilianItemActivity {
+  Activity: {
+    Name: string;
+    ActivityID?: number;
+    MaxProgress?: number;
+    Prerequisite?: readonly string[];
+    Target?: readonly string[];
+    TargetSelf?: readonly string[] | boolean;
+  };
+  Item?: {
+    Asset: { Name: string; Group: { Name: string; Family?: string } };
+    Craft?: { Name?: string };
+  };
+  Blocked?: "blocked" | "limited";
+  Group: string;
 } 

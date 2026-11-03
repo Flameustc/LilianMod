@@ -4,6 +4,7 @@ import { loadSettings } from "./storage";
 import { installChatGarbleHook } from "./chat-control/hook";
 import { getLilianDebugApi, installOrgasmControlHooks } from "./orgasm-control/hook";
 import type { LilianDebugApi } from "./orgasm-control/debugApi";
+import { installReverseInsert } from "./reverse-insert/hook";
 import { PLUGIN_KEY, SETTINGS_VERSION } from "./settings";
 
 declare global {
@@ -40,6 +41,7 @@ function bootstrap(): void {
   });
   installChatGarbleHook(mod, () => state.settings);
   installOrgasmControlHooks(mod, () => state.settings);
+  installReverseInsert(mod);
   registerPreferencesExtension(state);
   const debug = getLilianDebugApi();
   if (debug) {
