@@ -8,6 +8,7 @@ import {
   penetrableHole,
   queryReverseInsertOffers,
   reverseInsertActivityName,
+  pickReverseInsertChat,
   reverseInsertChatContentKey,
   reverseInsertDictionaryText,
   reverseInsertSpecByName,
@@ -173,10 +174,19 @@ function offersFor(initiator: BCCharacter, wearer: BCCharacter, focusGroup: stri
   });
 }
 
-function renderChat(specName: string, hole: ReverseHole, initiator: BCCharacter, wearer: BCCharacter, item: GameItemActivity["Item"]): string {
+function renderChat(
+  specName: string,
+  hole: ReverseHole,
+  variant: number,
+  template: string,
+  initiator: BCCharacter,
+  wearer: BCCharacter,
+  item: GameItemActivity["Item"]
+): string {
   const spec = reverseInsertSpecByName(specName);
   if (!spec) return "";
-  const contentKey = reverseInsertChatContentKey(spec.name, hole);
+  const contentKey = reverseInsertChatContentKey(spec.name, hole, variant);
+  const line = reverseInsertDictionaryText(contentKey) ?? template;
   const dictionary = new DictionaryBuilder()
     .sourceCharacter(initiator)
     .targetCharacter(wearer)
@@ -190,7 +200,7 @@ function renderChat(specName: string, hole: ReverseHole, initiator: BCCharacter,
     { Content: contentKey, Type: "Activity", Dictionary: built, Sender: initiator.MemberNumber },
     initiator
   );
-  return CommonStringSubstitute(spec.chat[hole], extracted.substitutions ?? []);
+  return CommonStringSubstitute(line, extracted.substitutions ?? []);
 }
 
 function sendReverseInsertMessage(
@@ -202,7 +212,8 @@ function sendReverseInsertMessage(
 ): void {
   const spec = reverseInsertSpecByName(specName);
   if (!spec) return;
-  const contentKey = reverseInsertChatContentKey(spec.name, hole);
+  const picked = pickReverseInsertChat(hole, spec.speed);
+  const contentKey = reverseInsertChatContentKey(spec.name, hole, picked.index);
   const dictionary = new DictionaryBuilder()
     .sourceCharacter(initiator)
     .targetCharacter(wearer)
@@ -214,7 +225,7 @@ function sendReverseInsertMessage(
   built.push({ ActivityName: spec.name });
   built.push({
     Tag: missingActivityTextTag(contentKey),
-    Text: renderChat(spec.name, hole, initiator, wearer, itemActivity.Item),
+    Text: renderChat(spec.name, hole, picked.index, picked.text, initiator, wearer, itemActivity.Item),
   });
   ServerSend("ChatRoomChat", { Content: contentKey, Type: "Activity", Dictionary: built });
 }

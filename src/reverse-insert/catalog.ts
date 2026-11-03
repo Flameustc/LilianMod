@@ -25,13 +25,51 @@ export interface ReverseInsertSpec {
   registeredMaxProgress: 0;
   activityId: number;
   label: string;
-  chat: Record<ReverseHole, string>;
+  /** 每个孔位四句，发送时随机抽一句。占位符保持 SourceCharacter / TargetCharacter / ActivityAsset。 */
+  chat: Record<ReverseHole, readonly [string, string, string, string]>;
 }
 
-const HOLE_CHAT: Record<ReverseHole, string> = {
-  ItemVulva: "阴道",
-  ItemButt: "后穴",
-  ItemMouth: "嘴",
+const REVERSE_INSERT_CHAT: Record<ReverseSpeed, Record<ReverseHole, readonly [string, string, string, string]>> = {
+  Slow: {
+    ItemVulva: [
+      "SourceCharacter主动用阴道慢慢含入TargetCharacter的ActivityAsset。",
+      "SourceCharacter把TargetCharacter的ActivityAsset缓缓纳入阴道。",
+      "SourceCharacter主动沉腰，用阴道一点点吞下TargetCharacter的ActivityAsset。",
+      "SourceCharacter主动用阴阜贴上TargetCharacter的ActivityAsset，慢慢含进去。",
+    ],
+    ItemButt: [
+      "SourceCharacter主动用后穴慢慢含入TargetCharacter的ActivityAsset。",
+      "SourceCharacter把TargetCharacter的ActivityAsset缓缓纳入后穴。",
+      "SourceCharacter主动翘起臀，一点点把TargetCharacter的ActivityAsset吞进后穴。",
+      "SourceCharacter主动用后穴口贴住TargetCharacter的ActivityAsset，慢慢吃进去。",
+    ],
+    ItemMouth: [
+      "SourceCharacter主动用嘴慢慢含入TargetCharacter的ActivityAsset。",
+      "SourceCharacter把TargetCharacter的ActivityAsset缓缓含进嘴里。",
+      "SourceCharacter主动俯身，一点点把TargetCharacter的ActivityAsset吞进嘴里。",
+      "SourceCharacter主动用唇舌贴上TargetCharacter的ActivityAsset，慢慢含住。",
+    ],
+  },
+  Fast: {
+    ItemVulva: [
+      "SourceCharacter主动用阴道用力含入TargetCharacter的ActivityAsset。",
+      "SourceCharacter猛地把TargetCharacter的ActivityAsset吞进阴道。",
+      "SourceCharacter主动抬臀迎上，一口气把TargetCharacter的ActivityAsset吃进阴道。",
+      "SourceCharacter迫不及待地用阴道套住TargetCharacter的ActivityAsset，快速吞吐。",
+    ],
+    ItemButt: [
+      "SourceCharacter主动用后穴用力含入TargetCharacter的ActivityAsset。",
+      "SourceCharacter猛地把TargetCharacter的ActivityAsset吞进后穴。",
+      "SourceCharacter主动向后坐，一口气把TargetCharacter的ActivityAsset吃进后穴。",
+      "SourceCharacter迫不及待地用后穴套住TargetCharacter的ActivityAsset，快速吞吐。",
+    ],
+    ItemMouth: [
+      "SourceCharacter主动用嘴用力含入TargetCharacter的ActivityAsset。",
+      "SourceCharacter猛地把TargetCharacter的ActivityAsset吞进嘴里。",
+      "SourceCharacter主动张口迎上，一口气把TargetCharacter的ActivityAsset含到底。",
+      "SourceCharacter迫不及待地用嘴套住TargetCharacter的ActivityAsset，快速吞吐。",
+    ],
+  },
 };
 
 export function vanillaPenetrateName(speed: ReverseSpeed): "PenetrateSlow" | "PenetrateFast" {
@@ -42,13 +80,8 @@ export function reverseInsertActivityName(speed: ReverseSpeed): string {
   return speed === "Fast" ? "LilianReverseInsertFast" : "LilianReverseInsertSlow";
 }
 
-function chatFor(speed: ReverseSpeed): Record<ReverseHole, string> {
-  const verb = speed === "Fast" ? "用力含入" : "慢慢含入";
-  return {
-    ItemVulva: `SourceCharacter主动用${HOLE_CHAT.ItemVulva}${verb}TargetCharacter的ActivityAsset。`,
-    ItemButt: `SourceCharacter主动用${HOLE_CHAT.ItemButt}${verb}TargetCharacter的ActivityAsset。`,
-    ItemMouth: `SourceCharacter主动用${HOLE_CHAT.ItemMouth}${verb}TargetCharacter的ActivityAsset。`,
-  };
+function chatFor(speed: ReverseSpeed): Record<ReverseHole, readonly [string, string, string, string]> {
+  return REVERSE_INSERT_CHAT[speed];
 }
 
 function buildSpecs(): ReverseInsertSpec[] {
@@ -144,8 +177,26 @@ export function describeVanillaPenetrateCheck(hole: ReverseHole, speed: ReverseS
   };
 }
 
-export function reverseInsertChatContentKey(activityName: string, hole: ReverseHole): string {
-  return `ChatSelf-${hole}-${activityName}`;
+export function reverseInsertChatPool(hole: ReverseHole, speed: ReverseSpeed): readonly [string, string, string, string] {
+  return REVERSE_INSERT_CHAT[speed][hole];
+}
+
+/** `random` 取 [0, 1)。同一句交给字典键、回退文本和 renderChat，避免各端各抽一次。 */
+export function pickReverseInsertChat(hole: ReverseHole, speed: ReverseSpeed, random: number = Math.random()): { index: number; text: string } {
+  const pool = reverseInsertChatPool(hole, speed);
+  const unit = Number.isFinite(random) ? Math.min(0.999999, Math.max(0, random)) : 0;
+  const index = Math.floor(unit * pool.length);
+  return { index, text: pool[index] };
+}
+
+export function reverseInsertChatContentKey(activityName: string, hole: ReverseHole, variant: number): string {
+  return `ChatSelf-${hole}-${activityName}-${variant}`;
+}
+
+function chatVariantIndex(key: string): number {
+  const match = /-([0-3])$/.exec(key);
+  if (!match) return 0;
+  return Number(match[1]);
 }
 
 /** 与动作扩展（XiaoSuActivity）相同的缺词回退标签，让没装 Lilian 的客户端也能看到整句。 */
@@ -157,8 +208,9 @@ export function reverseInsertDictionaryText(key: string): string | null {
   const spec = REVERSE_INSERT_SPECS.find((entry) => key.includes(entry.name));
   if (!spec) return null;
   if (key.startsWith("Chat")) {
-    const hole = REVERSE_HOLES.find((entry) => key.includes(entry));
-    return hole ? spec.chat[hole] : spec.chat.ItemVulva;
+    const hole = REVERSE_HOLES.find((entry) => key.includes(entry)) ?? "ItemVulva";
+    const pool = spec.chat[hole];
+    return pool[chatVariantIndex(key)] ?? pool[0];
   }
   return spec.label;
 }
