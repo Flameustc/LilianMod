@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import {
   describeVanillaPenetrateCheck,
+  equipperArousalPlan,
+  EQUIPPER_AROUSAL_ZONE,
   missingActivityTextTag,
   penetrableHole,
   queryReverseInsertOffers,
@@ -148,6 +150,52 @@ for (const blocked of [
     },
   });
   assert.deepEqual(offers, []);
+}
+
+{
+  const slow = equipperArousalPlan({
+    activityName: "LilianReverseInsertSlow",
+    localPlayerIsTarget: true,
+    localPlayerIsSender: false,
+  });
+  assert.deepEqual(slow, {
+    vanillaName: "PenetrateSlow",
+    zone: EQUIPPER_AROUSAL_ZONE,
+    source: "equipper",
+    target: "initiator",
+    forwardAsset: true,
+  });
+  assert.equal(slow?.zone, "ActivityOnOther");
+  const fast = equipperArousalPlan({
+    activityName: "LilianReverseInsertFast",
+    localPlayerIsTarget: true,
+    localPlayerIsSender: false,
+  });
+  assert.equal(fast?.vanillaName, "PenetrateFast");
+  assert.equal(
+    equipperArousalPlan({
+      activityName: "LilianReverseInsertSlow",
+      localPlayerIsTarget: false,
+      localPlayerIsSender: false,
+    }),
+    null
+  );
+  assert.equal(
+    equipperArousalPlan({
+      activityName: "LilianReverseInsertFast",
+      localPlayerIsTarget: true,
+      localPlayerIsSender: true,
+    }),
+    null
+  );
+  assert.equal(
+    equipperArousalPlan({
+      activityName: "PenetrateSlow",
+      localPlayerIsTarget: true,
+      localPlayerIsSender: false,
+    }),
+    null
+  );
 }
 
 assert.equal(REVERSE_INSERT_SPECS.length, 2);

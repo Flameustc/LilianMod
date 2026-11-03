@@ -76,6 +76,43 @@ export function isReverseInsertName(name: string): boolean {
 }
 
 /**
+ * 穿着方自己点原版插入时，给自己加的是 `ActivityRunSelf`：
+ * 区域固定为 `ActivityOnOther`，活动名是 PenetrateSlow/Fast，物品原样传入，
+ * 系数完全由原版（以及 Lilian 对 `ActivitySetArousalTimer` 的敏感度钩子）计算。
+ * 这里不另写倍数。
+ */
+export const EQUIPPER_AROUSAL_ZONE = "ActivityOnOther" as const;
+
+export interface EquipperArousalPlan {
+  vanillaName: "PenetrateSlow" | "PenetrateFast";
+  zone: typeof EQUIPPER_AROUSAL_ZONE;
+  source: "equipper";
+  target: "initiator";
+  forwardAsset: true;
+}
+
+/**
+ * 发起方发出的活动消息。只有穿着方自己的客户端（消息目标、且不是发送者）才重放原版「对他人」进度。
+ * 没装 Lilian 的客户端认不出活动名，`ActivityEffect` 会直接返回，进度不加；句子仍靠 MISSING TEXT 回退显示。
+ */
+export function equipperArousalPlan(input: {
+  activityName: string;
+  localPlayerIsTarget: boolean;
+  localPlayerIsSender: boolean;
+}): EquipperArousalPlan | null {
+  if (!input.localPlayerIsTarget || input.localPlayerIsSender) return null;
+  const spec = reverseInsertSpecByName(input.activityName);
+  if (!spec) return null;
+  return {
+    vanillaName: spec.vanillaName,
+    zone: EQUIPPER_AROUSAL_ZONE,
+    source: "equipper",
+    target: "initiator",
+    forwardAsset: true,
+  };
+}
+
+/**
  * 原版插入检查的角色方向。
  * - acting：穿着可插入物、在原版里执行 Penetrate* 的一方
  * - acted：被插入的一方（主动插入里是点击自己孔位的人）

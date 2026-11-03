@@ -2,6 +2,7 @@ import type { ModSDKModAPI } from "bondage-club-mod-sdk";
 import type { BCCharacter } from "../types/bc";
 import {
   describeVanillaPenetrateCheck,
+  equipperArousalPlan,
   isReverseInsertName,
   missingActivityTextTag,
   penetrableHole,
@@ -226,6 +227,8 @@ function sendReverseInsertMessage(
  * 按钮只加在自己的口/阴/后穴上，并且 CurrentCharacter 必须是别人（穿着方的面板开着，BC 会把自己画在左侧）。
  * ActivityRun 确认是主动插入后，把参数改成原版 Penetrate*（acting = 穿着方，acted = 自己，部位 = 点中的孔）再交给 next，并关掉原版聊天。
  * 不把原始参数交给 next：原始调用的 acted 是自己，活动名却是自定义的，刺激和句子都会错。
+ * 同时发出活动消息（目标 = 穿着方）。穿着方若装了 Lilian，ActivityEffect 不走原版，而调用 ActivityRunSelf(Penetrate*, ActivityOnOther)，
+ * 与他们自己点插入时的进度路径相同。没装 Lilian 的穿着方看不到这个钩子，进度不补，句子仍由 MISSING TEXT 显示。
  */
 export function installReverseInsert(mod: ModSDKModAPI): void {
   if (installed) return;
@@ -315,15 +318,21 @@ export function installReverseInsert(mod: ModSDKModAPI): void {
   mod.hookFunction("ActivityEffect", 30, (args, next) => {
     const name = activityNameOf(args[2]);
     if (!isReverseInsertName(name)) return next(args);
-    // 聊天目标是穿着方。原版会按这条自定义活动给穿着方加刺激；这里改成和原版插入一样的「对他人」进度。
+    // 这条自定义活动消息的目标是穿着方。不走 next：原版会把 MaxProgress 0 的自定义活动算到穿着方身上。
+    // 穿着方客户端改调 ActivityRunSelf(PenetrateSlow/Fast, "ActivityOnOther")，和他们自己点插入时同一条路径，
+    // 敏感度仍由 Lilian 的 ActivitySetArousalTimer 钩子处理。没装 Lilian 的人进不了这个钩子，进度不会补上。
     const initiator = args[0];
     const wearer = args[1];
-    const spec = reverseInsertSpecByName(name);
+    const plan = equipperArousalPlan({
+      activityName: name,
+      localPlayerIsTarget: wearer?.IsPlayer() === true,
+      localPlayerIsSender: initiator?.IsPlayer() === true,
+    });
+    if (!plan || !wearer || !initiator) return;
+    const vanilla = AssetGetActivity(familyOf(wearer), plan.vanillaName);
+    if (!vanilla) return;
     const zoneName = typeof args[3] === "string" ? args[3] : "";
-    if (!spec || !wearer?.IsPlayer() || !initiator || initiator.IsPlayer() || !zoneName) return;
-    const vanilla = AssetGetActivity(familyOf(wearer), spec.vanillaName);
-    const holeGroup = ActivityGetGroupOrMirror(familyOf(wearer), zoneName);
-    if (!vanilla || !holeGroup) return;
+    const holeGroup = zoneName ? ActivityGetGroupOrMirror(familyOf(wearer), zoneName) : null;
     ActivityRunSelf(wearer, initiator, vanilla, holeGroup, args[5] ?? null);
   });
 }
