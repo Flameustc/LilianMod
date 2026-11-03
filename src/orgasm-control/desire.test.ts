@@ -12,8 +12,10 @@ import {
   desireReachesForceThreshold,
   forceOrgasmGameDifficulty,
   interactionDoublesPlayerProgress,
+  mistressProgressMultiplierFor,
   otherCharacterMemberNumber,
   scaleProgressFactor,
+  type PlayerProgressActivityHook,
 } from "./desire";
 
 test("desire overflow anchors at 100 and subtracts half of current desire", () => {
@@ -88,4 +90,44 @@ test("mistress is the owner or an extra member, never the player themselves", ()
   assert.equal(doubles(source(player, true), source(7)), false);
   assert.equal(doubles(source(player, true), source(player, true)), false);
   assert.equal(interactionDoublesPlayerProgress(null, null, owner, [player]), false);
+});
+
+test("ActivityEffect, ActivityEffectFlat, and ActivityRunSelf double only the slave meter", () => {
+  const owner = 38905;
+  const player = 61119;
+  const extras = [100];
+  const mult = (
+    hook: PlayerProgressActivityHook,
+    sourceMember: number,
+    targetMember: number,
+    sourceIsPlayer: boolean,
+    targetIsPlayer: boolean,
+    extraList: readonly number[] = extras
+  ) =>
+    mistressProgressMultiplierFor({
+      hook,
+      sourceIsPlayer,
+      targetIsPlayer,
+      sourceMember,
+      targetMember,
+      ownerMember: owner,
+      extraMistressMemberNumbers: extraList,
+    });
+
+  assert.equal(mult("ActivityEffect", owner, player, false, true), MISTRESS_PROGRESS_MULTIPLIER);
+  assert.equal(mult("ActivityEffectFlat", owner, player, false, true), MISTRESS_PROGRESS_MULTIPLIER);
+  assert.equal(mult("ActivityEffect", 100, player, false, true), MISTRESS_PROGRESS_MULTIPLIER);
+  assert.equal(mult("ActivityEffectFlat", 100, player, false, true), MISTRESS_PROGRESS_MULTIPLIER);
+  // Acting on the mistress updates the slave through ActivityRunSelf, not ActivityEffect.
+  assert.equal(mult("ActivityEffect", player, owner, true, false), 1);
+  assert.equal(mult("ActivityEffectFlat", player, owner, true, false), 1);
+  assert.equal(mult("ActivityRunSelf", player, owner, true, false), MISTRESS_PROGRESS_MULTIPLIER);
+  assert.equal(mult("ActivityRunSelf", player, 100, true, false), MISTRESS_PROGRESS_MULTIPLIER);
+  assert.equal(mult("ActivityEffect", 7, player, false, true), 1);
+  assert.equal(mult("ActivityRunSelf", player, 7, true, false), 1);
+  assert.equal(mult("ActivityEffectFlat", player, player, true, true), 1);
+  assert.equal(mult("ActivityRunSelf", player, player, true, true), 1);
+  assert.equal(mult("ActivityEffect", owner, player, false, true, [player]), MISTRESS_PROGRESS_MULTIPLIER);
+  assert.equal(scaleProgressFactor(11, mult("ActivityRunSelf", player, owner, true, false)), 22);
+  assert.equal(scaleProgressFactor(-3, MISTRESS_PROGRESS_MULTIPLIER), -6);
 });

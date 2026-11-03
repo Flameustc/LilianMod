@@ -89,11 +89,11 @@ export function otherCharacterMemberNumber(memberNumber: number | null, isPlayer
 export function isMistressMember(
   memberNumber: number | null,
   ownerMemberNumber: number | null,
-  extraMistressMemberNumbers: readonly number[]
+  extraMistressMemberNumbers: readonly number[] | null | undefined
 ): boolean {
   if (memberNumber == null) return false;
   if (ownerMemberNumber != null && memberNumber === ownerMemberNumber) return true;
-  return extraMistressMemberNumbers.includes(memberNumber);
+  return (extraMistressMemberNumbers ?? []).includes(memberNumber);
 }
 
 /**
@@ -104,10 +104,46 @@ export function interactionDoublesPlayerProgress(
   otherSourceMember: number | null,
   otherTargetMember: number | null,
   ownerMemberNumber: number | null,
-  extraMistressMemberNumbers: readonly number[]
+  extraMistressMemberNumbers: readonly number[] | null | undefined
 ): boolean {
   return (
     isMistressMember(otherSourceMember, ownerMemberNumber, extraMistressMemberNumbers) ||
     isMistressMember(otherTargetMember, ownerMemberNumber, extraMistressMemberNumbers)
   );
+}
+
+/** Where the slave's own arousal meter is updated. */
+export type PlayerProgressActivityHook = "ActivityEffect" | "ActivityEffectFlat" | "ActivityRunSelf";
+
+/**
+ * ActivityEffect and ActivityEffectFlat add progress to the target.
+ * ActivityRunSelf adds progress to the player only when the player acts on someone else.
+ */
+export function playerReceivesActivityProgress(
+  hook: PlayerProgressActivityHook,
+  sourceIsPlayer: boolean,
+  targetIsPlayer: boolean
+): boolean {
+  if (hook === "ActivityRunSelf") return sourceIsPlayer && !targetIsPlayer;
+  return targetIsPlayer;
+}
+
+/** 2 when this call should double the slave's factor, otherwise 1. */
+export function mistressProgressMultiplierFor(input: {
+  hook: PlayerProgressActivityHook;
+  sourceIsPlayer: boolean;
+  targetIsPlayer: boolean;
+  sourceMember: number | null;
+  targetMember: number | null;
+  ownerMember: number | null;
+  extraMistressMemberNumbers: readonly number[] | null | undefined;
+}): number {
+  if (!playerReceivesActivityProgress(input.hook, input.sourceIsPlayer, input.targetIsPlayer)) return 1;
+  const doubles = interactionDoublesPlayerProgress(
+    otherCharacterMemberNumber(input.sourceMember, input.sourceIsPlayer),
+    otherCharacterMemberNumber(input.targetMember, input.targetIsPlayer),
+    input.ownerMember,
+    input.extraMistressMemberNumbers
+  );
+  return doubles ? MISTRESS_PROGRESS_MULTIPLIER : 1;
 }

@@ -56,6 +56,41 @@ test("setArousal writes Progress and clears ProgressTimer", () => {
   assert.equal(player.ArousalSettings.Progress, 100);
 });
 
+test("setDesire and setArousal round-trip the values the hooks read", () => {
+  let desire = 1;
+  let lastDecayAt: number | null = 0;
+  const player = { ArousalSettings: { Progress: 3, ProgressTimer: 9 } };
+  const synced: number[] = [];
+  const api = createLilianDebugApi({
+    readDesire: () => desire,
+    writeDesire: (value, now) => {
+      const state = { desire, lastDecayAt };
+      commitDebugDesire(state, value, now);
+      desire = state.desire;
+      lastDecayAt = state.lastDecayAt;
+      return desire;
+    },
+    readArousal: () => readDebugArousal(player),
+    writeArousal: (value) => {
+      const applied = commitDebugArousal(player, value);
+      if (applied != null && applied === player.ArousalSettings.Progress) synced.push(applied);
+      return applied ?? readDebugArousal(player);
+    },
+    now: () => 5000,
+  });
+
+  assert.equal(api.setDesire(-3), 0);
+  assert.equal(api.getDesire(), 0);
+  assert.equal(lastDecayAt, 5000);
+  assert.equal(api.setDesire(18), 18);
+  assert.equal(api.getDesire(), 18);
+  assert.equal(api.setArousal(95), 95);
+  assert.equal(api.getArousal(), 95);
+  assert.equal(player.ArousalSettings.Progress, 95);
+  assert.equal(player.ArousalSettings.ProgressTimer, 0);
+  assert.deepEqual(synced, [95]);
+});
+
 test("debug.enabled false leaves desire and arousal unchanged", () => {
   let desire = 4;
   let progress = 15;

@@ -4,7 +4,6 @@ import type { BCActivity, BCCharacter } from "../types/bc";
 import {
   DESIRE_DECAY_MS,
   DESIRE_RUINED_BONUS,
-  MISTRESS_PROGRESS_MULTIPLIER,
   arousalTimerIncoming,
   asMemberNumber,
   computeDesireOverflow,
@@ -12,8 +11,7 @@ import {
   desireAfterDecay,
   desireReachesForceThreshold,
   forceOrgasmGameDifficulty,
-  interactionDoublesPlayerProgress,
-  otherCharacterMemberNumber,
+  mistressProgressMultiplierFor,
   scaleProgressFactor,
 } from "./desire";
 import { onRuinedOrgasmPath, registerRuinedOrgasmIntercept } from "./ruinedIntercept";
@@ -119,21 +117,23 @@ function characterIsPlayer(c: BCCharacter | null | undefined): boolean {
  */
 function withMistressProgress<T>(
   getSettings: () => LilianSettings,
+  hook: Parameters<typeof mistressProgressMultiplierFor>[0]["hook"],
   source: BCCharacter | null | undefined,
   target: BCCharacter | null | undefined,
-  progressGoesToPlayer: boolean,
   run: () => T
 ): T {
-  if (!progressGoesToPlayer) return run();
-  const doubles = interactionDoublesPlayerProgress(
-    otherCharacterMemberNumber(asMemberNumber(source?.MemberNumber), characterIsPlayer(source)),
-    otherCharacterMemberNumber(asMemberNumber(target?.MemberNumber), characterIsPlayer(target)),
-    asMemberNumber(Player.Ownership?.MemberNumber),
-    getSettings().OrgasmControlSetting.mistressMemberNumbers
-  );
-  if (!doubles) return run();
+  const multiplier = mistressProgressMultiplierFor({
+    hook,
+    sourceIsPlayer: characterIsPlayer(source),
+    targetIsPlayer: characterIsPlayer(target),
+    sourceMember: asMemberNumber(source?.MemberNumber),
+    targetMember: asMemberNumber(target?.MemberNumber),
+    ownerMember: asMemberNumber(Player.Ownership?.MemberNumber),
+    extraMistressMemberNumbers: getSettings().OrgasmControlSetting.mistressMemberNumbers,
+  });
+  if (multiplier === 1) return run();
   const previous = mistressProgressMultiplier;
-  mistressProgressMultiplier *= MISTRESS_PROGRESS_MULTIPLIER;
+  mistressProgressMultiplier *= multiplier;
   try {
     return run();
   } finally {
@@ -151,7 +151,8 @@ function readPlayerArousal(): number {
 
 function writePlayerArousal(value: number): number {
   const applied = commitDebugArousal(Player, value);
-  if (applied != null && Player.ArousalSettings != null && typeof ActivityChatRoomArousalSync === "function") {
+  const stored = Player.ArousalSettings != null && applied != null && applied === Player.ArousalSettings.Progress;
+  if (stored && typeof ActivityChatRoomArousalSync === "function") {
     ActivityChatRoomArousalSync(Player as unknown as BCCharacter);
   }
   return applied ?? readPlayerArousal();
@@ -191,15 +192,15 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
   registerRuinedOrgasmIntercept(mod, 115);
 
   mod.hookFunction("ActivityEffect", 50, (args, next) => {
-    return withMistressProgress(getSettings, args[0], args[1], characterIsPlayer(args[1]), () => next(args));
+    return withMistressProgress(getSettings, "ActivityEffect", args[0], args[1], () => next(args));
   });
 
   mod.hookFunction("ActivityEffectFlat", 50, (args, next) => {
-    return withMistressProgress(getSettings, args[0], args[1], characterIsPlayer(args[1]), () => next(args));
+    return withMistressProgress(getSettings, "ActivityEffectFlat", args[0], args[1], () => next(args));
   });
 
   mod.hookFunction("ActivityRunSelf", 50, (args, next) => {
-    return withMistressProgress(getSettings, args[0], args[1], characterIsPlayer(args[0]), () => next(args));
+    return withMistressProgress(getSettings, "ActivityRunSelf", args[0], args[1], () => next(args));
   });
 
   mod.hookFunction("ActivitySetArousalTimer", 50, (args, next) => {
@@ -208,6 +209,7 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
       return next(args);
     }
 
+    // Doubling is independent of force orgasm: the factor is scaled before the timer, then vanilla caps it.
     if (mistressProgressMultiplier !== 1) {
       args[3] = scaleProgressFactor(args[3], mistressProgressMultiplier);
     }
