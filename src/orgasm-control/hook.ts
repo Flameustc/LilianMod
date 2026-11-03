@@ -1,20 +1,38 @@
 import type { ModSDKModAPI } from "bondage-club-mod-sdk";
 import type { LilianSettings } from "../settings";
 import type { BCActivity, BCCharacter } from "../types/bc";
-import { computeIntendedArousalDelta, computeMaxForArousalTimer } from "./sensitivity";
+import {
+  DESIRE_DECAY_MS,
+  DESIRE_RUINED_BONUS,
+  arousalTimerIncoming,
+  asMemberNumber,
+  computeDesireOverflow,
+  computeTimerBeforeMaxCap,
+  desireAfterDecay,
+  desireReachesForceThreshold,
+  forceOrgasmGameDifficulty,
+  mistressProgressMultiplierFor,
+  scaleProgressFactor,
+} from "./desire";
 import { onRuinedOrgasmPath, registerRuinedOrgasmIntercept } from "./ruinedIntercept";
+import {
+  commitDebugArousal,
+  commitDebugDesire,
+  createLilianDebugApi,
+  readDebugArousal,
+  type LilianDebugApi,
+} from "./debugApi";
 
 let installed = false;
+let debugApi: LilianDebugApi | null = null;
 
 /** >0 while `ActivitySetArousalTimer` runs with sensitivity cap applied (for `PreferenceGetZoneOrgasm` incremental bypass). */
 let lilianArousalBoostDepth = 0;
 
-const DESIRE_DECAY_MS = 1900;
-const DESIRE_DECAY_STEP = 2;
-const DESIRE_RUINED_BONUS = 5;
-
 let desireValue = 0;
 let lastDesireDecayAt: number | null = null;
+/** >1 while ActivityEffect / ActivityEffectFlat / ActivityRunSelf should double the player's factor. */
+let mistressProgressMultiplier = 1;
 /** Set by Prepare hook when this orgasm attempt is allowed to bypass ruined. Consumed by Start hook once. */
 let allowRuinedBypassOnNextStart = false;
 /** Set when an action pushes arousal to orgasm; consumed by ActivityOrgasmGameGenerate(0). */
@@ -33,7 +51,7 @@ function applyDesireDecay(): void {
   const elapsed = now - lastDesireDecayAt;
   const steps = Math.floor(elapsed / DESIRE_DECAY_MS);
   if (steps <= 0) return;
-  desireValue = Math.max(0, desireValue - steps * DESIRE_DECAY_STEP);
+  desireValue = desireAfterDecay(desireValue, steps);
   lastDesireDecayAt += steps * DESIRE_DECAY_MS;
 }
 
@@ -88,9 +106,82 @@ function applySensitivityCapToActivitySetArousalTimerArgs(
   args[1] = clone;
 }
 
+function characterIsPlayer(c: BCCharacter | null | undefined): boolean {
+  return typeof c?.IsPlayer === "function" && c.IsPlayer();
+}
+
+/**
+ * `ActivitySetArousalTimer` has no Source/Target. Mark mistress interactions here, then
+ * scale the factor inside the timer hook before vanilla applies it.
+ * `ActivityRunSelf` is the player's own meter when the target is someone else.
+ */
+function withMistressProgress<T>(
+  getSettings: () => LilianSettings,
+  hook: Parameters<typeof mistressProgressMultiplierFor>[0]["hook"],
+  source: BCCharacter | null | undefined,
+  target: BCCharacter | null | undefined,
+  run: () => T
+): T {
+  const multiplier = mistressProgressMultiplierFor({
+    hook,
+    sourceIsPlayer: characterIsPlayer(source),
+    targetIsPlayer: characterIsPlayer(target),
+    sourceMember: asMemberNumber(source?.MemberNumber),
+    targetMember: asMemberNumber(target?.MemberNumber),
+    ownerMember: asMemberNumber(Player.Ownership?.MemberNumber),
+    extraMistressMemberNumbers: getSettings().OrgasmControlSetting.mistressMemberNumbers,
+  });
+  if (multiplier === 1) return run();
+  const previous = mistressProgressMultiplier;
+  mistressProgressMultiplier *= multiplier;
+  try {
+    return run();
+  } finally {
+    mistressProgressMultiplier = previous;
+  }
+}
+
+function debugNow(): number {
+  return typeof CurrentTime === "number" && Number.isFinite(CurrentTime) ? CurrentTime : Number.NaN;
+}
+
+function readPlayerArousal(): number {
+  return readDebugArousal(Player);
+}
+
+function writePlayerArousal(value: number): number {
+  const applied = commitDebugArousal(Player, value);
+  const stored = Player.ArousalSettings != null && applied != null && applied === Player.ArousalSettings.Progress;
+  if (stored && typeof ActivityChatRoomArousalSync === "function") {
+    ActivityChatRoomArousalSync(Player as unknown as BCCharacter);
+  }
+  return applied ?? readPlayerArousal();
+}
+
+function writeHiddenDesire(value: number, now: number): number {
+  const state = { desire: desireValue, lastDecayAt: lastDesireDecayAt };
+  commitDebugDesire(state, value, now);
+  desireValue = state.desire;
+  lastDesireDecayAt = state.lastDecayAt;
+  return desireValue;
+}
+
+/** Console-only API. Installed onto `window.LilianMod.debug` from the mod entry. */
+export function getLilianDebugApi(): LilianDebugApi | null {
+  return debugApi;
+}
+
 export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => LilianSettings): void {
   if (installed) return;
   installed = true;
+
+  debugApi = createLilianDebugApi({
+    readDesire: () => desireValue,
+    writeDesire: writeHiddenDesire,
+    readArousal: readPlayerArousal,
+    writeArousal: writePlayerArousal,
+    now: debugNow,
+  });
 
   onRuinedOrgasmPath(() => {
     if (!getSettings().OrgasmControlSetting.forceOrgasmEnabled) return;
@@ -100,10 +191,27 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
 
   registerRuinedOrgasmIntercept(mod, 115);
 
+  mod.hookFunction("ActivityEffect", 50, (args, next) => {
+    return withMistressProgress(getSettings, "ActivityEffect", args[0], args[1], () => next(args));
+  });
+
+  mod.hookFunction("ActivityEffectFlat", 50, (args, next) => {
+    return withMistressProgress(getSettings, "ActivityEffectFlat", args[0], args[1], () => next(args));
+  });
+
+  mod.hookFunction("ActivityRunSelf", 50, (args, next) => {
+    return withMistressProgress(getSettings, "ActivityRunSelf", args[0], args[1], () => next(args));
+  });
+
   mod.hookFunction("ActivitySetArousalTimer", 50, (args, next) => {
     const C = args[0];
     if (!C.IsPlayer()) {
       return next(args);
+    }
+
+    // Doubling is independent of force orgasm: the factor is scaled before the timer, then vanilla caps it.
+    if (mistressProgressMultiplier !== 1) {
+      args[3] = scaleProgressFactor(args[3], mistressProgressMultiplier);
     }
 
     const org = getSettings().OrgasmControlSetting;
@@ -127,24 +235,19 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
     try {
       if (org.forceOrgasmEnabled) {
         applyDesireDecay();
-        const incoming0 = Number.isFinite(args[3]) ? args[3] : 0;
         const arousal = C.ArousalSettings;
         let oldTimer = arousal.ProgressTimer;
         if (oldTimer == null || typeof oldTimer !== "number" || Number.isNaN(oldTimer)) {
           oldTimer = 0;
         }
-        const progressNow = arousal.Progress;
-        const zone = args[2];
-        const activity = args[1];
-        const maxEffective = computeMaxForArousalTimer(C, activity, zone, args[4]);
-        const { overflow } = computeIntendedArousalDelta(
-          oldTimer,
-          incoming0,
-          progressNow,
-          org.sensitivityLevel,
-          maxEffective
-        );
-        desireValue += overflow;
+        let progressNow = arousal.Progress;
+        if (typeof progressNow !== "number" || !Number.isFinite(progressNow)) {
+          progressNow = 0;
+        }
+        // Progress_after_increase uses the pre-Max timer (mistress factor ×2, then + sensitivity), anchored at 100.
+        const incoming = arousalTimerIncoming(args[3], org.sensitivityLevel);
+        const progressAfterIncrease = progressNow + computeTimerBeforeMaxCap(oldTimer, incoming);
+        desireValue += computeDesireOverflow(progressAfterIncrease, desireValue);
       }
 
       if (org.sensitivityLevel > 0) {
@@ -181,11 +284,12 @@ export function installOrgasmControlHooks(mod: ModSDKModAPI, getSettings: () => 
     }
 
     // Any orgasm attempt while force mode is enabled should use desire-based mini-game difficulty.
-    pendingOrgasmGameDifficultyOverride = Math.max(6, Math.floor(desireValue));
+    pendingOrgasmGameDifficultyOverride = forceOrgasmGameDifficulty(desireValue);
 
     applyDesireDecay();
+    // threshold 0 disables the bypass even if desire is high; otherwise desire >= threshold.
     const threshold = org.forceOrgasmDesireThreshold;
-    if (desireValue <= threshold) {
+    if (!desireReachesForceThreshold(desireValue, threshold)) {
       allowRuinedBypassOnNextStart = false;
       return next(args);
     }

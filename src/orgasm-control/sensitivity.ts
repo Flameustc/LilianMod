@@ -1,6 +1,11 @@
 import type { BCActivity, BCCharacter } from "../types/bc";
 
-/** Mirrors vanilla `ActivitySetArousalTimer` Max computation (Activity.js ~520–530). Use `Activity` after Lilian cap clone is applied. */
+/**
+ * Mirrors vanilla `ActivitySetArousalTimer` Max computation (Activity.js ~496–518).
+ * Use `Activity` after the sensitivity cap clone is applied.
+ * Desire overflow does not use this gap; it anchors at 100 in `desire.ts`.
+ * Raising MaxProgress / MaxProgressSelf (and the zone-orgasm bypass) still decides whether an act can reach orgasm.
+ */
 export function computeMaxForArousalTimer(
   C: BCCharacter,
   Activity: BCActivity | null,
@@ -28,41 +33,4 @@ export function computeMaxForArousalTimer(
     }
   }
   return max;
-}
-
-function clamp(n: number, lo: number, hi: number): number {
-  if (n < lo) return lo;
-  if (n > hi) return hi;
-  return n;
-}
-
-export interface IntendedArousalDeltaResult {
-  intended: number;
-  applied: number;
-  overflow: number;
-}
-
-/**
- * intended = clamp(round(old/2 + incoming0), -25, 25) + sensitivityLevel;
- * applied follows vanilla-style timer clamp on boosted input then Progress-vs-Max cap.
- */
-export function computeIntendedArousalDelta(
-  oldTimer: number,
-  incoming0: number,
-  progressNow: number,
-  sensitivityLevel: number,
-  maxEffective: number
-): IntendedArousalDeltaResult {
-  const baseClamped = clamp(Math.round(oldTimer / 2 + incoming0), -25, 25);
-  const intended = baseClamped + sensitivityLevel;
-  const boostedClamped = clamp(
-    Math.round(oldTimer / 2 + incoming0 + sensitivityLevel),
-    -25,
-    25
-  );
-  const allowed = Math.max(0, maxEffective - progressNow);
-  const applied =
-    boostedClamped > 0 ? Math.min(boostedClamped, allowed) : boostedClamped;
-  const overflow = Math.max(0, intended - applied);
-  return { intended, applied, overflow };
 }

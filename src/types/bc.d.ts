@@ -18,6 +18,7 @@ export interface BCActivity {
 
 export interface BCCharacter {
   ID: number;
+  MemberNumber?: number;
   IsPlayer(): boolean;
   ArousalSettings: {
     Progress: number;
@@ -30,6 +31,14 @@ export interface BCCharacter {
 declare global {
   interface PlayerCharacter {
     MemberNumber: number;
+    Ownership?: { MemberNumber?: number; Name?: string } | null;
+    IsPlayer(): boolean;
+    ArousalSettings?: {
+      Progress: number;
+      ProgressTimer: number;
+      OrgasmTimer?: number;
+      OrgasmStage?: number;
+    };
     ExtensionSettings?: Record<string, string>;
     IsPlayer(): boolean;
     ChatSettings: {
@@ -139,6 +148,31 @@ declare global {
     Activity: BCActivity | null,
     Zone: string,
     Progress: number,
+    Asset?: unknown
+  ): void;
+  /** Source `S`, target `C`. Factor is applied inside, before `ActivitySetArousalTimer`. */
+  function ActivityEffect(
+    S: BCCharacter,
+    C: BCCharacter,
+    A: unknown,
+    Z: string,
+    Count?: number,
+    Asset?: unknown
+  ): void;
+  function ActivityEffectFlat(
+    S: BCCharacter,
+    C: BCCharacter,
+    Amount: number,
+    Z: string,
+    Count?: number,
+    Asset?: unknown
+  ): void;
+  /** Player self-arousal when acting on someone else. Passes Source and Target; the timer call does not. */
+  function ActivityRunSelf(
+    Source: BCCharacter,
+    Target: BCCharacter,
+    Activity: BCActivity,
+    Group: unknown,
     Asset?: unknown
   ): void;
   function ActivityOrgasmGameGenerate(Progress: number): void;
