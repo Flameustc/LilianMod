@@ -2,22 +2,17 @@ import assert from "node:assert/strict";
 import {
   describeVanillaPenetrateCheck,
   missingActivityTextTag,
-  penetrativeItemVisibleOnFocus,
+  penetrableHole,
   queryReverseInsertOffers,
   reverseInsertChatContentKey,
   reverseInsertDictionaryText,
+  reverseInsertSheetAllowsOffer,
   reverseInsertSpecByName,
   REVERSE_INSERT_SPECS,
 } from "./catalog";
 
-const strap = { group: "ItemPelvis", activityGroup: "ItemPelvis", name: "StraponPanties" };
-const handheld = { group: "ItemHandheld", activityGroup: "ItemHands", name: "LargeDildo" };
-const penis = { group: "Pussy", activityGroup: "Pussy", name: "Penis" };
-const device = { group: "ItemDevices", activityGroup: "ItemDevices", name: "StrapOnSmooth" };
-
-function identity<T extends { group: string; activityGroup: string; name: string }>(item: T) {
-  return item;
-}
+const strap = { name: "StraponPanties" };
+const dildo = { name: "LargeDildo" };
 
 {
   const plan = describeVanillaPenetrateCheck("ItemButt", "Fast");
@@ -33,101 +28,150 @@ function identity<T extends { group: string; activityGroup: string; name: string
   ]);
 }
 
-assert.equal(penetrativeItemVisibleOnFocus(penis, "ItemVulva", "ItemVulva"), true);
-assert.equal(penetrativeItemVisibleOnFocus(handheld, "ItemHandheld", "ItemHands"), true);
-assert.equal(penetrativeItemVisibleOnFocus(strap, "ItemPelvis", "ItemPelvis"), true);
-assert.equal(penetrativeItemVisibleOnFocus(device, "ItemVulva", "ItemVulva"), true);
-assert.equal(penetrativeItemVisibleOnFocus(device, "ItemBreast", "ItemBreast"), false);
-assert.equal(penetrativeItemVisibleOnFocus(handheld, "ItemButt", "ItemButt"), false);
+assert.equal(penetrableHole("ItemMouth2", "ItemMouth"), "ItemMouth");
+assert.equal(penetrableHole("ItemVulva", "ItemVulva"), "ItemVulva");
+assert.equal(penetrableHole("ItemButt", "ItemButt"), "ItemButt");
+assert.equal(penetrableHole("ItemBreast", "ItemBreast"), null);
+assert.equal(penetrableHole("ItemVulvaPiercings", "ItemVulvaPiercings"), null);
+assert.equal(penetrableHole("ItemPelvis", "ItemPelvis"), null);
+
+assert.equal(reverseInsertSheetAllowsOffer({ openedSheetIsPlayer: true, zoneOwnerIsPlayer: true }), false);
+assert.equal(reverseInsertSheetAllowsOffer({ openedSheetIsPlayer: null, zoneOwnerIsPlayer: true }), false);
+assert.equal(reverseInsertSheetAllowsOffer({ openedSheetIsPlayer: false, zoneOwnerIsPlayer: false }), false);
+assert.equal(reverseInsertSheetAllowsOffer({ openedSheetIsPlayer: false, zoneOwnerIsPlayer: true }), true);
 
 {
   const calls: string[] = [];
   const offers = queryReverseInsertOffers({
-    wearerIsPlayer: false,
+    openedSheetIsPlayer: false,
+    zoneOwnerIsPlayer: true,
     zonePossible: true,
-    blockedByDistance: false,
-    focusGroup: "ItemVulva",
-    focusActivityGroup: "ItemVulva",
-    holeLegal: (hole, speed) => {
-      calls.push(`legal:${hole}:${speed}`);
-      return hole !== "ItemMouth" && speed === "Slow";
+    wearerOutOfRange: false,
+    focusHole: "ItemVulva",
+    holeLegal: (speed) => {
+      calls.push(`legal:${speed}`);
+      return speed === "Slow";
     },
-    itemsForHole: (hole) => {
-      calls.push(`items:${hole}`);
-      return hole === "ItemButt" ? [strap] : [];
+    items: () => {
+      calls.push("items");
+      return [strap];
     },
-    describeItem: identity,
   });
   assert.deepEqual(
-    offers.map((offer) => `${offer.name}:${offer.item.name}`),
-    ["LilianReverseInsertButtSlow:StraponPanties"]
+    offers.map((offer) => `${offer.name}:${offer.hole}:${offer.item.name}`),
+    ["LilianReverseInsertSlow:ItemVulva:StraponPanties"]
   );
-  assert.equal(calls.includes("items:ItemMouth"), false);
-  assert.equal(calls.filter((call) => call === "items:ItemVulva").length, 1);
-  assert.equal(calls.filter((call) => call === "items:ItemButt").length, 1);
-  assert.equal(calls.includes("legal:ItemMouth:Fast"), true);
+  assert.deepEqual(calls, ["legal:Slow", "legal:Fast", "items"]);
 }
 
 {
   const offers = queryReverseInsertOffers({
-    wearerIsPlayer: true,
+    openedSheetIsPlayer: false,
+    zoneOwnerIsPlayer: true,
     zonePossible: true,
-    blockedByDistance: false,
-    focusGroup: "ItemVulva",
-    focusActivityGroup: "ItemVulva",
+    wearerOutOfRange: false,
+    focusHole: "ItemMouth",
+    holeLegal: () => true,
+    items: () => [strap, dildo],
+  });
+  assert.deepEqual(
+    offers.map((offer) => offer.name),
+    [
+      "LilianReverseInsertSlow",
+      "LilianReverseInsertSlow",
+      "LilianReverseInsertFast",
+      "LilianReverseInsertFast",
+    ]
+  );
+  assert.deepEqual(offers.map((offer) => offer.item.name), ["StraponPanties", "LargeDildo", "StraponPanties", "LargeDildo"]);
+}
+
+{
+  const offers = queryReverseInsertOffers({
+    openedSheetIsPlayer: true,
+    zoneOwnerIsPlayer: true,
+    zonePossible: true,
+    wearerOutOfRange: false,
+    focusHole: "ItemVulva",
     holeLegal: () => {
-      throw new Error("self focus must not consult vanilla gates");
+      throw new Error("own sheet must not consult vanilla gates");
     },
-    itemsForHole: () => {
-      throw new Error("self focus must not scan items");
+    items: () => {
+      throw new Error("own sheet must not scan items");
     },
-    describeItem: identity,
+  });
+  assert.deepEqual(offers, []);
+}
+
+{
+  const offers = queryReverseInsertOffers({
+    openedSheetIsPlayer: false,
+    zoneOwnerIsPlayer: false,
+    zonePossible: true,
+    wearerOutOfRange: false,
+    focusHole: "ItemVulva",
+    holeLegal: () => {
+      throw new Error("wearer zones must not consult vanilla gates");
+    },
+    items: () => {
+      throw new Error("wearer zones must not scan items");
+    },
   });
   assert.deepEqual(offers, []);
 }
 
 for (const blocked of [
-  { wearerIsPlayer: false, zonePossible: false, blockedByDistance: false },
-  { wearerIsPlayer: false, zonePossible: true, blockedByDistance: true },
-] as const) {
+  { zonePossible: false, wearerOutOfRange: false, focusHole: "ItemButt" as const },
+  { zonePossible: true, wearerOutOfRange: true, focusHole: "ItemButt" as const },
+  { zonePossible: true, wearerOutOfRange: false, focusHole: null },
+]) {
   const offers = queryReverseInsertOffers({
+    openedSheetIsPlayer: false,
+    zoneOwnerIsPlayer: true,
     ...blocked,
-    focusGroup: "ItemVulva",
-    focusActivityGroup: "ItemVulva",
     holeLegal: () => true,
-    itemsForHole: () => [strap],
-    describeItem: identity,
+    items: () => [strap],
   });
   assert.equal(offers.length, 0);
 }
 
 {
   const offers = queryReverseInsertOffers({
-    wearerIsPlayer: false,
+    openedSheetIsPlayer: false,
+    zoneOwnerIsPlayer: true,
     zonePossible: true,
-    blockedByDistance: false,
-    focusGroup: "ItemBreast",
-    focusActivityGroup: "ItemBreast",
-    holeLegal: () => true,
-    itemsForHole: () => [handheld, device],
-    describeItem: identity,
+    wearerOutOfRange: false,
+    focusHole: "ItemButt",
+    holeLegal: () => false,
+    items: () => {
+      throw new Error("illegal hole must not scan items");
+    },
   });
-  assert.equal(offers.length, 0);
+  assert.deepEqual(offers, []);
 }
 
-assert.equal(REVERSE_INSERT_SPECS.length, 6);
-assert.equal(reverseInsertSpecByName("LilianReverseInsertVulvaSlow")?.label, "主动插入（阴道·慢）");
+assert.equal(REVERSE_INSERT_SPECS.length, 2);
+assert.equal(reverseInsertSpecByName("LilianReverseInsertSlow")?.label, "主动插入·慢");
+assert.equal(reverseInsertSpecByName("LilianReverseInsertFast")?.label, "主动插入·快");
 assert.equal(
-  reverseInsertDictionaryText("Label-ChatOther-ItemPenis-LilianReverseInsertVulvaFast"),
-  "主动插入（阴道·快）"
+  reverseInsertDictionaryText("Label-ChatSelf-ItemPenis-LilianReverseInsertFast"),
+  "主动插入·快"
 );
 assert.match(
-  reverseInsertDictionaryText("ChatOther-ItemVulva-LilianReverseInsertMouthSlow") ?? "",
+  reverseInsertDictionaryText("ChatSelf-ItemMouth-LilianReverseInsertSlow") ?? "",
   /SourceCharacter主动用嘴慢慢含入TargetCharacter的ActivityAsset。/
 );
+assert.match(
+  reverseInsertDictionaryText("ChatSelf-ItemButt-LilianReverseInsertFast") ?? "",
+  /SourceCharacter主动用后穴用力含入TargetCharacter的ActivityAsset。/
+);
 assert.equal(reverseInsertDictionaryText("ActivityWhisper"), null);
+assert.equal(reverseInsertDictionaryText("Label-ChatOther-ItemVulva-LilianReverseInsertVulvaSlow"), null);
 
-const contentKey = reverseInsertChatContentKey("LilianReverseInsertVulvaSlow");
-assert.equal(missingActivityTextTag(contentKey), 'MISSING TEXT IN "ActivityDictionary.csv": ChatOther-ItemVulva-LilianReverseInsertVulvaSlow');
+const contentKey = reverseInsertChatContentKey("LilianReverseInsertSlow", "ItemVulva");
+assert.equal(
+  missingActivityTextTag(contentKey),
+  'MISSING TEXT IN "ActivityDictionary.csv": ChatSelf-ItemVulva-LilianReverseInsertSlow'
+);
 
 console.log("reverse-insert catalog tests passed");

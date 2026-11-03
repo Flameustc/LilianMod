@@ -63,7 +63,8 @@ declare global {
   const MouseX: number;
   const MouseY: number;
   const CurrentTime: number;
-  const CurrentCharacter: { ID: number } | null;
+  /** Right-hand sheet. The player when only self is open; the other character when their sheet is open (self is then drawn on the left). */
+  const CurrentCharacter: BCCharacter | null;
   const MainCanvas: CanvasRenderingContext2D;
   class DictionaryBuilder {
     sourceCharacter(character: PlayerCharacter | BCCharacter): DictionaryBuilder;

@@ -1,10 +1,9 @@
 /**
  * 主动插入（reverse insert）的纯数据与筛选。
  *
- * 合法性不在这里重写。调用方必须先用原版 PenetrateSlow / PenetrateFast 的
- * `ActivityCheckPrerequisites` + `ActivityGenerateItemActivitiesFromNeed`
- *（acting = 穿着可插入物的一方，acted = 发起插入的一方，group = 发起方的孔位）
- * 得到 `holeLegal` / `itemsForHole`，这里只决定按钮出现在哪个焦点部位。
+ * 只有慢/快两个活动。按钮出现在「将被插入的一方」自己的口、阴、后穴上，
+ * 且仅当对方角色面板正开着（BC 会同步画出自己）。合法性仍由调用方用原版
+ * PenetrateSlow / PenetrateFast 的检查得到，角色为 acting = 穿着方，acted = 发起方。
  */
 
 export type ReverseHole = "ItemVulva" | "ItemButt" | "ItemMouth";
@@ -20,21 +19,14 @@ export const ACTIVITY_DICTIONARY_FILE = "ActivityDictionary.csv";
 
 export interface ReverseInsertSpec {
   name: string;
-  hole: ReverseHole;
   speed: ReverseSpeed;
   vanillaName: "PenetrateSlow" | "PenetrateFast";
   /** 注册进 ActivityFemale3DCG 的进度上限。保持 0，避免未装 Lilian 的对端把这条自定义活动当成对穿着者孔位的刺激。 */
   registeredMaxProgress: 0;
   activityId: number;
   label: string;
-  chat: string;
+  chat: Record<ReverseHole, string>;
 }
-
-const HOLE_LABEL: Record<ReverseHole, string> = {
-  ItemVulva: "阴道",
-  ItemButt: "后穴",
-  ItemMouth: "口腔",
-};
 
 const HOLE_CHAT: Record<ReverseHole, string> = {
   ItemVulva: "阴道",
@@ -46,32 +38,29 @@ export function vanillaPenetrateName(speed: ReverseSpeed): "PenetrateSlow" | "Pe
   return speed === "Fast" ? "PenetrateFast" : "PenetrateSlow";
 }
 
-export function reverseInsertActivityName(hole: ReverseHole, speed: ReverseSpeed): string {
-  const holeKey = hole === "ItemVulva" ? "Vulva" : hole === "ItemButt" ? "Butt" : "Mouth";
-  return `LilianReverseInsert${holeKey}${speed}`;
+export function reverseInsertActivityName(speed: ReverseSpeed): string {
+  return speed === "Fast" ? "LilianReverseInsertFast" : "LilianReverseInsertSlow";
+}
+
+function chatFor(speed: ReverseSpeed): Record<ReverseHole, string> {
+  const verb = speed === "Fast" ? "用力含入" : "慢慢含入";
+  return {
+    ItemVulva: `SourceCharacter主动用${HOLE_CHAT.ItemVulva}${verb}TargetCharacter的ActivityAsset。`,
+    ItemButt: `SourceCharacter主动用${HOLE_CHAT.ItemButt}${verb}TargetCharacter的ActivityAsset。`,
+    ItemMouth: `SourceCharacter主动用${HOLE_CHAT.ItemMouth}${verb}TargetCharacter的ActivityAsset。`,
+  };
 }
 
 function buildSpecs(): ReverseInsertSpec[] {
-  const specs: ReverseInsertSpec[] = [];
-  let offset = 0;
-  for (const hole of REVERSE_HOLES) {
-    for (const speed of REVERSE_SPEEDS) {
-      const pace = speed === "Fast" ? "快" : "慢";
-      const verb = speed === "Fast" ? "用力含入" : "慢慢含入";
-      specs.push({
-        name: reverseInsertActivityName(hole, speed),
-        hole,
-        speed,
-        vanillaName: vanillaPenetrateName(speed),
-        registeredMaxProgress: 0,
-        activityId: REVERSE_INSERT_ACTIVITY_ID_BASE + offset,
-        label: `主动插入（${HOLE_LABEL[hole]}·${pace}）`,
-        chat: `SourceCharacter主动用${HOLE_CHAT[hole]}${verb}TargetCharacter的ActivityAsset。`,
-      });
-      offset += 1;
-    }
-  }
-  return specs;
+  return REVERSE_SPEEDS.map((speed, offset) => ({
+    name: reverseInsertActivityName(speed),
+    speed,
+    vanillaName: vanillaPenetrateName(speed),
+    registeredMaxProgress: 0,
+    activityId: REVERSE_INSERT_ACTIVITY_ID_BASE + offset,
+    label: speed === "Fast" ? "主动插入·快" : "主动插入·慢",
+    chat: chatFor(speed),
+  }));
 }
 
 export const REVERSE_INSERT_SPECS: readonly ReverseInsertSpec[] = buildSpecs();
@@ -87,9 +76,9 @@ export function isReverseInsertName(name: string): boolean {
 }
 
 /**
- * 原版插入检查的角色方向。只允许这一组，避免把发起方和穿着方写反。
+ * 原版插入检查的角色方向。
  * - acting：穿着可插入物、在原版里执行 Penetrate* 的一方
- * - acted：被插入的一方（主动插入里是点击活动的人）
+ * - acted：被插入的一方（主动插入里是点击自己孔位的人）
  * - permissions.other：`ActivityCheckPermissions` 的 Other。true = 施予（giving），false = 承受（receiving）
  */
 export interface VanillaPenetrateCheckPlan {
@@ -118,8 +107,8 @@ export function describeVanillaPenetrateCheck(hole: ReverseHole, speed: ReverseS
   };
 }
 
-export function reverseInsertChatContentKey(activityName: string): string {
-  return `ChatOther-ItemVulva-${activityName}`;
+export function reverseInsertChatContentKey(activityName: string, hole: ReverseHole): string {
+  return `ChatSelf-${hole}-${activityName}`;
 }
 
 /** 与动作扩展（XiaoSuActivity）相同的缺词回退标签，让没装 Lilian 的客户端也能看到整句。 */
@@ -130,27 +119,35 @@ export function missingActivityTextTag(contentKey: string): string {
 export function reverseInsertDictionaryText(key: string): string | null {
   const spec = REVERSE_INSERT_SPECS.find((entry) => key.includes(entry.name));
   if (!spec) return null;
-  if (key.startsWith("Chat")) return spec.chat;
-  if (key.startsWith("Label-") || key.startsWith("Activity")) return spec.label;
+  if (key.startsWith("Chat")) {
+    const hole = REVERSE_HOLES.find((entry) => key.includes(entry));
+    return hole ? spec.chat[hole] : spec.chat.ItemVulva;
+  }
   return spec.label;
 }
 
-export interface ReverseInsertItemIdentity {
-  group: string;
-  activityGroup: string;
-  name: string;
+/**
+ * 当前焦点是不是可以被原版 Penetrate* 打中的孔。
+ * `focusActivityGroup` 是 `ActivityGetGroupOrMirror` 之后的名字（ItemMouth2/3 会回到 ItemMouth）。
+ */
+export function penetrableHole(focusGroup: string, focusActivityGroup: string): ReverseHole | null {
+  for (const name of [focusActivityGroup, focusGroup]) {
+    if (name === "ItemVulva" || name === "ItemButt" || name === "ItemMouth") return name;
+  }
+  return null;
 }
 
 /**
- * 按钮出现的焦点部位。
- * ItemVulva 与原版 SuckPenetrateItem / TargetNeeds-PenetrateItem 一样，是「对方身上任意可插入物」的入口。
- * 物品自己的活动部位（手持镜像到 ItemHands、骨盆、嘴、臀等）上也会出现。
+ * BC 对话框：`CurrentCharacter` 是右侧打开的那个人。
+ * - 只打开自己时，CurrentCharacter 就是玩家，左侧不会再画一个自己，不提供主动插入。
+ * - 打开了别人（穿着方）时，自己被同步画在左侧；只在自己的口/阴/后穴上加慢/快两个动作。
  */
-export function penetrativeItemVisibleOnFocus(item: ReverseInsertItemIdentity, focusGroup: string, focusActivityGroup: string): boolean {
-  if (item.activityGroup === focusActivityGroup || item.group === focusGroup || item.group === focusActivityGroup) {
-    return true;
-  }
-  return focusActivityGroup === "ItemVulva" || focusGroup === "ItemVulva";
+export function reverseInsertSheetAllowsOffer(input: {
+  /** null：没有打开的角色页。true：打开的是自己。false：打开的是别人。 */
+  openedSheetIsPlayer: boolean | null;
+  zoneOwnerIsPlayer: boolean;
+}): boolean {
+  return input.openedSheetIsPlayer === false && input.zoneOwnerIsPlayer;
 }
 
 export interface ReverseInsertOffer<T> {
@@ -161,27 +158,33 @@ export interface ReverseInsertOffer<T> {
 }
 
 export function queryReverseInsertOffers<T>(args: {
-  wearerIsPlayer: boolean;
+  openedSheetIsPlayer: boolean | null;
+  zoneOwnerIsPlayer: boolean;
   zonePossible: boolean;
-  blockedByDistance: boolean;
-  focusGroup: string;
-  focusActivityGroup: string;
-  holeLegal: (hole: ReverseHole, speed: ReverseSpeed) => boolean;
-  itemsForHole: (hole: ReverseHole) => readonly T[];
-  describeItem: (item: T) => ReverseInsertItemIdentity;
+  wearerOutOfRange: boolean;
+  focusHole: ReverseHole | null;
+  holeLegal: (speed: ReverseSpeed) => boolean;
+  items: () => readonly T[];
 }): ReverseInsertOffer<T>[] {
-  if (args.wearerIsPlayer || !args.zonePossible || args.blockedByDistance) return [];
+  if (!reverseInsertSheetAllowsOffer({
+    openedSheetIsPlayer: args.openedSheetIsPlayer,
+    zoneOwnerIsPlayer: args.zoneOwnerIsPlayer,
+  })) {
+    return [];
+  }
+  if (!args.zonePossible || args.wearerOutOfRange || args.focusHole == null) return [];
 
+  const legalSpeeds = REVERSE_SPEEDS.filter((speed) => args.holeLegal(speed));
+  if (legalSpeeds.length === 0) return [];
+
+  const hole = args.focusHole;
+  const found = args.items();
   const offers: ReverseInsertOffer<T>[] = [];
-  for (const hole of REVERSE_HOLES) {
-    for (const speed of REVERSE_SPEEDS) {
-      if (!args.holeLegal(hole, speed)) continue;
-      const spec = reverseInsertSpecByName(reverseInsertActivityName(hole, speed));
-      if (!spec) continue;
-      for (const item of args.itemsForHole(hole)) {
-        if (!penetrativeItemVisibleOnFocus(args.describeItem(item), args.focusGroup, args.focusActivityGroup)) continue;
-        offers.push({ name: spec.name, hole, speed, item });
-      }
+  for (const speed of legalSpeeds) {
+    const spec = reverseInsertSpecByName(reverseInsertActivityName(speed));
+    if (!spec) continue;
+    for (const item of found) {
+      offers.push({ name: spec.name, speed, hole, item });
     }
   }
   return offers;

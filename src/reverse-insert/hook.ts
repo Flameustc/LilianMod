@@ -4,6 +4,7 @@ import {
   describeVanillaPenetrateCheck,
   isReverseInsertName,
   missingActivityTextTag,
+  penetrableHole,
   queryReverseInsertOffers,
   reverseInsertActivityName,
   reverseInsertChatContentKey,
@@ -11,7 +12,6 @@ import {
   reverseInsertSpecByName,
   REVERSE_INSERT_SPECS,
   type ReverseHole,
-  type ReverseInsertItemIdentity,
   type ReverseSpeed,
 } from "./catalog";
 
@@ -42,7 +42,25 @@ function familyOf(character: BCCharacter): string {
   return character.AssetFamily || "Female3DCG";
 }
 
+function forgetStaleActivities(): void {
+  const keep = new Set(REVERSE_INSERT_SPECS.map((spec) => spec.name));
+  for (let i = ActivityFemale3DCG.length - 1; i >= 0; i -= 1) {
+    const name = ActivityFemale3DCG[i].Name;
+    if (name.startsWith("LilianReverseInsert") && !keep.has(name)) {
+      ActivityFemale3DCG.splice(i, 1);
+    }
+  }
+  if (typeof ActivityFemale3DCGOrdering === "undefined") return;
+  for (let i = ActivityFemale3DCGOrdering.length - 1; i >= 0; i -= 1) {
+    const name = ActivityFemale3DCGOrdering[i];
+    if (name.startsWith("LilianReverseInsert") && !keep.has(name)) {
+      ActivityFemale3DCGOrdering.splice(i, 1);
+    }
+  }
+}
+
 function registerActivities(): void {
+  forgetStaleActivities();
   const usedIds = new Set(ActivityFemale3DCG.map((activity) => activity.ActivityID).filter((id): id is number => typeof id === "number"));
   for (const spec of REVERSE_INSERT_SPECS) {
     if (registered.has(spec.name)) continue;
@@ -79,30 +97,28 @@ function activityNameOf(activity: unknown): string {
   return "";
 }
 
-function describeGeneratedItem(item: GameItemActivity): ReverseInsertItemIdentity {
-  const group = item.Item?.Asset.Group.Name ?? "";
-  const mirrored = group ? ActivityGetGroupOrMirror(item.Item?.Asset.Group.Family || "Female3DCG", group) : null;
-  return {
-    group,
-    activityGroup: mirrored?.Name ?? group,
-    name: item.Item?.Asset.Name ?? "",
-  };
-}
-
 function characterFor(planWho: "wearer" | "initiator", wearer: BCCharacter, initiator: BCCharacter): BCCharacter {
   return planWho === "wearer" ? wearer : initiator;
 }
 
 /**
+ * 右侧打开的是穿着方。只打开自己时 CurrentCharacter 就是玩家，返回 null。
+ */
+function openedWearer(): BCCharacter | null {
+  if (typeof CurrentCharacter === "undefined" || CurrentCharacter == null || CurrentCharacter.IsPlayer()) return null;
+  return CurrentCharacter;
+}
+
+/**
  * 原版「穿着方插入发起方的这个孔」是否成立。
- * 前置、权限、可插入物清单都走原函数，角色按 {@link describeVanillaPenetrateCheck} 对调。
+ * 前置和权限都走原函数，角色按 {@link describeVanillaPenetrateCheck} 对调。
  */
 function vanillaHoleLegal(wearer: BCCharacter, initiator: BCCharacter, hole: ReverseHole, speed: ReverseSpeed): boolean {
   const plan = describeVanillaPenetrateCheck(hole, speed);
   const family = familyOf(wearer);
   const vanilla = AssetGetActivity(family, plan.activityName);
   const group = ActivityGetGroupOrMirror(family, plan.group);
-  const ours = registered.get(reverseInsertActivityName(hole, speed));
+  const ours = registered.get(reverseInsertActivityName(speed));
   if (!vanilla || !group || !ours) return false;
 
   const acting = characterFor(plan.acting, wearer, initiator);
@@ -136,37 +152,34 @@ function generatedItems(wearer: BCCharacter, initiator: BCCharacter, hole: Rever
   ) as GameItemActivity[];
 }
 
-function offersFor(wearer: BCCharacter, initiator: BCCharacter, focusGroup: string): ReturnType<typeof queryReverseInsertOffers<GameItemActivity>> {
-  const family = familyOf(wearer);
+function offersFor(initiator: BCCharacter, wearer: BCCharacter, focusGroup: string): ReturnType<typeof queryReverseInsertOffers<GameItemActivity>> {
+  const family = familyOf(initiator);
   const focusActivityGroup = ActivityGetGroupOrMirror(family, focusGroup)?.Name ?? focusGroup;
-  const itemCache = new Map<ReverseHole, GameItemActivity[]>();
+  const hole = penetrableHole(focusGroup, focusActivityGroup);
+  let itemCache: GameItemActivity[] | null = null;
   return queryReverseInsertOffers({
-    wearerIsPlayer: wearer.IsPlayer(),
-    zonePossible: ActivityPossibleOnGroup(wearer, focusGroup),
-    blockedByDistance: InventoryIsBlockedByDistance(wearer),
-    focusGroup,
-    focusActivityGroup,
-    holeLegal: (hole, speed) => vanillaHoleLegal(wearer, initiator, hole, speed),
-    itemsForHole: (hole) => {
-      let items = itemCache.get(hole);
-      if (!items) {
-        items = generatedItems(wearer, initiator, hole);
-        itemCache.set(hole, items);
-      }
-      return items;
+    openedSheetIsPlayer: wearer.IsPlayer() ? true : false,
+    zoneOwnerIsPlayer: initiator.IsPlayer(),
+    zonePossible: ActivityPossibleOnGroup(initiator, focusGroup),
+    wearerOutOfRange: InventoryIsBlockedByDistance(wearer),
+    focusHole: hole,
+    holeLegal: (speed) => (hole ? vanillaHoleLegal(wearer, initiator, hole, speed) : false),
+    items: () => {
+      if (!hole) return [];
+      if (!itemCache) itemCache = generatedItems(wearer, initiator, hole);
+      return itemCache;
     },
-    describeItem: describeGeneratedItem,
   });
 }
 
-function renderChat(specName: string, initiator: BCCharacter, wearer: BCCharacter, item: GameItemActivity["Item"]): string {
+function renderChat(specName: string, hole: ReverseHole, initiator: BCCharacter, wearer: BCCharacter, item: GameItemActivity["Item"]): string {
   const spec = reverseInsertSpecByName(specName);
   if (!spec) return "";
-  const contentKey = reverseInsertChatContentKey(spec.name);
+  const contentKey = reverseInsertChatContentKey(spec.name, hole);
   const dictionary = new DictionaryBuilder()
     .sourceCharacter(initiator)
     .targetCharacter(wearer)
-    .focusGroup(spec.hole);
+    .focusGroup(hole);
   if (item) {
     dictionary.asset(item.Asset, "ActivityAsset", item.Craft?.Name ?? "");
   }
@@ -176,17 +189,23 @@ function renderChat(specName: string, initiator: BCCharacter, wearer: BCCharacte
     { Content: contentKey, Type: "Activity", Dictionary: built, Sender: initiator.MemberNumber },
     initiator
   );
-  return CommonStringSubstitute(spec.chat, extracted.substitutions ?? []);
+  return CommonStringSubstitute(spec.chat[hole], extracted.substitutions ?? []);
 }
 
-function sendReverseInsertMessage(initiator: BCCharacter, wearer: BCCharacter, itemActivity: GameItemActivity, specName: string): void {
+function sendReverseInsertMessage(
+  initiator: BCCharacter,
+  wearer: BCCharacter,
+  itemActivity: GameItemActivity,
+  specName: string,
+  hole: ReverseHole
+): void {
   const spec = reverseInsertSpecByName(specName);
   if (!spec) return;
-  const contentKey = reverseInsertChatContentKey(spec.name);
+  const contentKey = reverseInsertChatContentKey(spec.name, hole);
   const dictionary = new DictionaryBuilder()
     .sourceCharacter(initiator)
     .targetCharacter(wearer)
-    .focusGroup(spec.hole);
+    .focusGroup(hole);
   if (itemActivity.Item) {
     dictionary.asset(itemActivity.Item.Asset, "ActivityAsset", itemActivity.Item.Craft?.Name ?? "");
   }
@@ -194,7 +213,7 @@ function sendReverseInsertMessage(initiator: BCCharacter, wearer: BCCharacter, i
   built.push({ ActivityName: spec.name });
   built.push({
     Tag: missingActivityTextTag(contentKey),
-    Text: renderChat(spec.name, initiator, wearer, itemActivity.Item),
+    Text: renderChat(spec.name, hole, initiator, wearer, itemActivity.Item),
   });
   ServerSend("ChatRoomChat", { Content: contentKey, Type: "Activity", Dictionary: built });
 }
@@ -204,8 +223,9 @@ function sendReverseInsertMessage(initiator: BCCharacter, wearer: BCCharacter, i
  * 发出的活动消息带上 MISSING TEXT 回退，没装本插件的人仍能看到中文整句。
  * 不注册自定义 Prerequisite 字符串，避免和动作扩展的 ActivityCheckPrerequisite 分发抢名字。
  *
- * ActivityRun 确认是主动插入后，把参数改成原版 Penetrate*（acting = 穿着方，acted = 发起方，部位 = 发起方孔位）再交给 next，并关掉原版聊天。
- * 不把原始参数交给 next：那会把刺激算到被点击的穿着者身上，并生成「穿着方正在插入」的原版句子。
+ * 按钮只加在自己的口/阴/后穴上，并且 CurrentCharacter 必须是别人（穿着方的面板开着，BC 会把自己画在左侧）。
+ * ActivityRun 确认是主动插入后，把参数改成原版 Penetrate*（acting = 穿着方，acted = 自己，部位 = 点中的孔）再交给 next，并关掉原版聊天。
+ * 不把原始参数交给 next：原始调用的 acted 是自己，活动名却是自定义的，刺激和句子都会错。
  */
 export function installReverseInsert(mod: ModSDKModAPI): void {
   if (installed) return;
@@ -224,14 +244,15 @@ export function installReverseInsert(mod: ModSDKModAPI): void {
 
   mod.hookFunction("ActivityAllowedForGroup", 20, (args, next) => {
     const allowed = next(args);
-    const wearer = args[0];
+    const zoneOwner = args[0];
     const focusGroup = args[1];
-    if (!wearer || wearer.IsPlayer()) return allowed;
+    const wearer = openedWearer();
+    if (!zoneOwner || !wearer || !zoneOwner.IsPlayer()) return allowed;
+    const focusActivityGroup = ActivityGetGroupOrMirror(familyOf(zoneOwner), focusGroup)?.Name ?? focusGroup;
     const extras: GameItemActivity[] = [];
-    for (const offer of offersFor(wearer, Player, focusGroup)) {
+    for (const offer of offersFor(zoneOwner, wearer, focusGroup)) {
       const activity = registered.get(offer.name);
       if (!activity || !offer.item.Item) continue;
-      const focusActivityGroup = ActivityGetGroupOrMirror(familyOf(wearer), focusGroup)?.Name ?? focusGroup;
       const entry: GameItemActivity = {
         Activity: activity,
         Item: offer.item.Item,
@@ -254,12 +275,13 @@ export function installReverseInsert(mod: ModSDKModAPI): void {
     if (!isReverseInsertName(name)) return next(args);
 
     const initiator = args[0];
-    const wearer = args[1];
+    const zoneOwner = args[1];
     const focusGroup = args[2];
+    const wearer = openedWearer();
     const sendMessage = args.length < 5 || args[4] !== false;
-    if (!initiator || !wearer || !focusGroup || !itemActivity?.Item) return;
+    if (!initiator || !zoneOwner || !focusGroup || !wearer || !zoneOwner.IsPlayer() || !itemActivity?.Item) return;
 
-    const offer = offersFor(wearer, initiator, focusGroup.Name).find((candidate) => {
+    const offer = offersFor(zoneOwner, wearer, focusGroup.Name).find((candidate) => {
       return candidate.name === name
         && candidate.item.Item?.Asset.Name === itemActivity.Item?.Asset.Name
         && candidate.item.Item?.Asset.Group.Name === itemActivity.Item?.Asset.Group.Name
@@ -270,20 +292,20 @@ export function installReverseInsert(mod: ModSDKModAPI): void {
     const spec = reverseInsertSpecByName(offer.name);
     const family = familyOf(wearer);
     const vanilla = spec ? AssetGetActivity(family, spec.vanillaName) : null;
-    const holeGroup = spec ? ActivityGetGroupOrMirror(family, spec.hole) : null;
+    const holeGroup = ActivityGetGroupOrMirror(family, offer.hole);
     if (!spec || !vanilla || !holeGroup) return;
 
     const vanillaRun: GameItemActivity = {
       Activity: vanilla,
       Item: itemActivity.Item,
-      Group: spec.hole,
+      Group: offer.hole,
     };
     if (itemActivity.Blocked) vanillaRun.Blocked = itemActivity.Blocked;
-    // 原版 ActivityRun：acted = 发起方（正在被插入），activity = PenetrateSlow/Fast，部位 = 发起方孔位。
+    // 原版 ActivityRun：acted = 自己（正在被插入），activity = PenetrateSlow/Fast，部位 = 点中的孔。
     next([wearer, initiator, holeGroup, vanillaRun, false]);
     if (sendMessage) {
       try {
-        sendReverseInsertMessage(initiator, wearer, vanillaRun, spec.name);
+        sendReverseInsertMessage(initiator, wearer, vanillaRun, spec.name, offer.hole);
       } catch (error) {
         console.warn("LilianMod: 主动插入消息发送失败", error);
       }
@@ -293,13 +315,14 @@ export function installReverseInsert(mod: ModSDKModAPI): void {
   mod.hookFunction("ActivityEffect", 30, (args, next) => {
     const name = activityNameOf(args[2]);
     if (!isReverseInsertName(name)) return next(args);
-    // 聊天目标是穿着方。原版会按这条自定义活动给穿着方的孔位加刺激；这里改成和原版插入一样的「对他人」进度。
+    // 聊天目标是穿着方。原版会按这条自定义活动给穿着方加刺激；这里改成和原版插入一样的「对他人」进度。
     const initiator = args[0];
     const wearer = args[1];
     const spec = reverseInsertSpecByName(name);
-    if (!spec || !wearer?.IsPlayer() || !initiator || initiator.IsPlayer()) return;
+    const zoneName = typeof args[3] === "string" ? args[3] : "";
+    if (!spec || !wearer?.IsPlayer() || !initiator || initiator.IsPlayer() || !zoneName) return;
     const vanilla = AssetGetActivity(familyOf(wearer), spec.vanillaName);
-    const holeGroup = ActivityGetGroupOrMirror(familyOf(wearer), spec.hole);
+    const holeGroup = ActivityGetGroupOrMirror(familyOf(wearer), zoneName);
     if (!vanilla || !holeGroup) return;
     ActivityRunSelf(wearer, initiator, vanilla, holeGroup, args[5] ?? null);
   });
