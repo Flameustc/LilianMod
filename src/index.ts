@@ -36,6 +36,7 @@ function bootstrap(): void {
     name: PLUGIN_KEY,
     fullName: "LilianMod",
     version: SETTINGS_VERSION.replace(/^v/i, ""),
+    repository: "https://github.com/Flameustc/LilianMod",
   });
   installChatGarbleHook(mod, () => state.settings);
   installOrgasmControlHooks(mod, () => state.settings);

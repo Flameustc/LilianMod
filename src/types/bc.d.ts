@@ -40,6 +40,7 @@ declare global {
       OrgasmStage?: number;
     };
     ExtensionSettings?: Record<string, string>;
+    IsPlayer(): boolean;
     ChatSettings: {
       OOCAutoClose: boolean;
     };
@@ -90,6 +91,24 @@ declare global {
   ) => { Content: string; Type: string; Dictionary: any[] };
   function SpeechGetOOCRanges(msg: string): Array<{ start: number; length: number }>;
   function SpeechTransformGagGarbleIntensity(character: PlayerCharacter): number;
+  function SpeechTransformDeafenIntensity(character: PlayerCharacter): number;
+  /**
+   * R131+ gag-letter transform. Vanilla also calls this for deafen; the 4th argument
+   * is not in vanilla, but MBS patches Process to pass the character through.
+   */
+  function SpeechTransformGagGarble(
+    text: string,
+    intensity: number,
+    ignoreOOC?: boolean,
+    character?: PlayerCharacter
+  ): string;
+  function SpeechTransformProcess(
+    character: PlayerCharacter,
+    text: string,
+    effects: string[],
+    ignoreOOC?: boolean
+  ): { effects: string[]; text: string };
+  function ServerSend(message: string, data?: object | null): void;
   function ChatRoomMessageReplyStop(): void;
   function DialogLeave(): void;
 
@@ -121,7 +140,7 @@ declare global {
   ): void;
   function MouseIn(x: number, y: number, width: number, height: number): boolean;
 
-  function PreferenceGetZoneOrgasm(character: { IsPlayer(): boolean }, zone: string): boolean;
+  function PreferenceGetZoneOrgasm(character: BCCharacter | PlayerCharacter, zone: string): boolean;
   function ActivityChatRoomArousalSync(character: BCCharacter): void;
   /** Declared for `bondage-club-mod-sdk` `hookFunction` typing (`GetDotedPathType<typeof globalThis, ...>`). */
   function ActivitySetArousalTimer(

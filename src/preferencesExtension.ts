@@ -28,7 +28,7 @@ const GARBLE_SOUND_MAX_LEN = 24;
 
 /** 悬停配置项名称时于底部条展示（行为对齐 LSCG `Tooltip` + `drawTooltip`） */
 const TT_CUSTOM_GARBLE =
-  "开启后，使用下方自定义拟声字参与堵嘴含糊；关闭则走游戏原版逻辑。";
+  "开启后，出站口塞走 Lilian 算法（呜 / m / M / * / —），并盖过同路径上的其它含糊；发出的聊天不附带 WCE/BCX 可还原的原文。关闭则交给游戏和已装插件。";
 const TT_GARBLE_SOUND =
   "含糊时插入的拟声字，在框内直接输入（建议短字或词）。若清空后失焦/更改，将恢复为默认「呜」。最多 24 字符。";
 const TT_SENSITIVITY_LEVEL =
