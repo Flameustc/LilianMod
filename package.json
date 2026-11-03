@@ -5,8 +5,10 @@
   "description": "Minimal BondageClub extension settings plugin in TypeScript",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
     "test": "esbuild src/reverse-insert/catalog.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/lilian-reverse-insert-test.js && node /tmp/lilian-reverse-insert-test.js",
-    "watch": "node scripts/build.mjs --watch"
+    "check:garble": "esbuild src/chat-control/garble.selfcheck.ts --bundle --platform=node --format=cjs --outfile=dist/garble.selfcheck.cjs && node dist/garble.selfcheck.cjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.11",

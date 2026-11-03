@@ -11,7 +11,11 @@ const banner = [
   "// @namespace lilianmod",
   `// @version ${pkg.version}`,
   "// @description LilianMod for BondageClub",
-  "// @match https://www.bondageprojects.elementfx.com/R*",
+  "// @match https://www.bondageprojects.elementfx.com/*",
+  "// @match https://bondageprojects.elementfx.com/*",
+  "// @match https://www.bondageprojects.com/*",
+  "// @match http://localhost:*/*",
+  "// @match https://localhost:*/*",
   "// @grant none",
   "// ==/UserScript==",
 ].join("\n");

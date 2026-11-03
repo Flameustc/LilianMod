@@ -36,8 +36,9 @@ declare global {
     ID: number;
     MemberNumber: number;
     AssetFamily?: string;
+    Ownership?: { MemberNumber?: number; Name?: string } | null;
     IsPlayer(): boolean;
-    ArousalSettings: BCCharacter["ArousalSettings"];
+    ArousalSettings?: BCCharacter["ArousalSettings"];
     ExtensionSettings?: Record<string, string>;
     ChatSettings: {
       OOCAutoClose: boolean;
@@ -97,6 +98,24 @@ declare global {
   ) => { Content: string; Type: string; Dictionary: any[] };
   function SpeechGetOOCRanges(msg: string): Array<{ start: number; length: number }>;
   function SpeechTransformGagGarbleIntensity(character: PlayerCharacter): number;
+  function SpeechTransformDeafenIntensity(character: PlayerCharacter): number;
+  /**
+   * R131+ gag-letter transform. Vanilla also calls this for deafen; the 4th argument
+   * is not in vanilla, but MBS patches Process to pass the character through.
+   */
+  function SpeechTransformGagGarble(
+    text: string,
+    intensity: number,
+    ignoreOOC?: boolean,
+    character?: PlayerCharacter
+  ): string;
+  function SpeechTransformProcess(
+    character: PlayerCharacter,
+    text: string,
+    effects: string[],
+    ignoreOOC?: boolean
+  ): { effects: string[]; text: string };
+  function ServerSend(message: string, data?: object | null): void;
   function ChatRoomMessageReplyStop(): void;
   function DialogLeave(): void;
 
@@ -128,7 +147,7 @@ declare global {
   ): void;
   function MouseIn(x: number, y: number, width: number, height: number): boolean;
 
-  function PreferenceGetZoneOrgasm(character: BCCharacter, zone: string): boolean;
+  function PreferenceGetZoneOrgasm(character: BCCharacter | PlayerCharacter, zone: string): boolean;
   function ActivityChatRoomArousalSync(character: BCCharacter): void;
   /** Declared for `bondage-club-mod-sdk` `hookFunction` typing (`GetDotedPathType<typeof globalThis, ...>`). */
   function ActivitySetArousalTimer(
@@ -136,6 +155,31 @@ declare global {
     Activity: BCActivity | null,
     Zone: string,
     Progress: number,
+    Asset?: unknown
+  ): void;
+  /** Source `S`, target `C`. Factor is applied inside, before `ActivitySetArousalTimer`. */
+  function ActivityEffect(
+    S: BCCharacter,
+    C: BCCharacter,
+    A: unknown,
+    Z: string,
+    Count?: number,
+    Asset?: unknown
+  ): void;
+  function ActivityEffectFlat(
+    S: BCCharacter,
+    C: BCCharacter,
+    Amount: number,
+    Z: string,
+    Count?: number,
+    Asset?: unknown
+  ): void;
+  /** Player self-arousal when acting on someone else. Passes Source and Target; the timer call does not. */
+  function ActivityRunSelf(
+    Source: BCCharacter,
+    Target: BCCharacter,
+    Activity: BCActivity,
+    Group: unknown,
     Asset?: unknown
   ): void;
   function ActivityOrgasmGameGenerate(Progress: number): void;
@@ -167,21 +211,6 @@ declare global {
     itemActivity: LilianItemActivity,
     sendMessage?: boolean
   ): void;
-  function ActivityEffect(
-    source: BCCharacter,
-    target: BCCharacter,
-    activity: string | { Name?: string; Activity?: { Name?: string } } | null,
-    zone: string,
-    count?: number,
-    asset?: { Name: string; Group: { Name: string } } | null
-  ): void;
-  function ActivityRunSelf(
-    source: BCCharacter,
-    target: BCCharacter,
-    activity: { Name: string },
-    group: { Name: string } | null,
-    asset?: { Name: string; Group: { Name: string } } | null
-  ): void;
   function ActivityCheckPrerequisites(
     activity: { Name: string; Prerequisite?: readonly string[] },
     acting: BCCharacter,
@@ -201,7 +230,6 @@ declare global {
   function ActivityPossibleOnGroup(character: BCCharacter, groupName: string): boolean;
   function AssetGetActivity(family: string, name: string): { Name: string; ActivityID?: number; Prerequisite?: readonly string[] } | null;
   function InventoryIsBlockedByDistance(character: BCCharacter): boolean;
-  function ServerSend(message: string, data?: unknown): void;
   function CommonStringSubstitute(template: string, substitutions: ReadonlyArray<[string, string]>): string;
   function ChatRoomMessageRunExtractors(
     data: { Content: string; Type: string; Dictionary?: unknown[]; Sender?: number },
